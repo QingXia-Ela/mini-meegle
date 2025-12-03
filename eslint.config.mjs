@@ -36,6 +36,7 @@ export default defineConfig([
     },
     rules: {
       '@eslint-react/no-leaked-conditional-rendering': 'warn',
+      '@typescript-eslint/no-explicit-any': ['warn', 'single'],
       '@stylistic/jsx-curly-brace-presence': [
         'warn',
         { props: 'never', children: 'never', propElementValues: 'always' },
