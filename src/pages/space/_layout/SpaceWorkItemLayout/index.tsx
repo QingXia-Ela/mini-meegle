@@ -1,6 +1,6 @@
 import { HomeFilled } from '@ant-design/icons';
 import { Select } from 'antd';
-import { Outlet } from 'react-router';
+import { Outlet, useParams } from 'react-router';
 import SidebarSelectItem from './components/SidebarSelectItem';
 
 function SpaceWorkItemLayout() {
@@ -20,7 +20,7 @@ function SpaceWorkItemLayout() {
           <SidebarSelectItem icon={<HomeFilled style={{ color: '#fff', fontSize: '12px' }} />} label="缺陷" active />
         </div>
       </div>
-      <div className='flex-1'>
+      <div className='flex-1 max-h-screen max-w-[calc(100vw-20rem)] flex flex-col'>
         <Outlet />
       </div>
     </div>

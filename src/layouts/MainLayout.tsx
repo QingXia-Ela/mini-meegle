@@ -48,7 +48,7 @@ const LeftToolSelectButton = ({
 
 export const MainLayout: React.FC = () => {
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex h-full bg-white">
       <aside className="w-20 border-r border-[#cacbcd] bg-white flex flex-col items-center gap-4 px-2 relative" aria-label="侧边栏" >
         <div className="h-16 flex items-center">
           <img src={MeegleLogo} alt="" width={32} />
@@ -85,7 +85,7 @@ export const MainLayout: React.FC = () => {
         </div >
       </aside >
 
-      <div className="w-[calc(100%-5rem)] flex flex-col">
+      <div className="w-[calc(100%-5rem)] flex flex-col max-h-screen">
         <main className=" bg-white flex-1 overflow-auto">
           <Outlet />
         </main>

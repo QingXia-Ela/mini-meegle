@@ -1,6 +1,7 @@
 import { App } from '@/App';
 import LoginPage from '@/pages/login';
-import WorkItemPage from '@/pages/space/[workItemId]';
+import TaskDetailRoutePage from '@/pages/space/[workItemId]/detail/[taskId]';
+import WorkItemPage from '@/pages/space/[workItemId]/index';
 import SpaceWorkItemLayout from '@/pages/space/_layout/SpaceWorkItemLayout';
 import SpaceOverviewPage from '@/pages/space/overview';
 import SpaceSettingsPage from '@/pages/space/settings';
@@ -27,6 +28,10 @@ const routes: RouteObject[] = [
           {
             path: ':spaceId/settings',
             Component: SpaceSettingsPage,
+          },
+          {
+            path: ':spaceId/:workItemId/:taskId/detail',
+            Component: TaskDetailRoutePage,
           },
           {
             path: ':spaceId/:workItemId',
