@@ -1,5 +1,7 @@
 import { App } from '@/App';
+import FavoritesPage from '@/pages/favorites/index';
 import LoginPage from '@/pages/login';
+import NoticeIndexPage from '@/pages/notifications/index/index';
 import TaskDetailRoutePage from '@/pages/space/[workItemId]/detail/[taskId]';
 import WorkItemPage from '@/pages/space/[workItemId]/index';
 import SpaceWorkItemLayout from '@/pages/space/_layout/SpaceWorkItemLayout';
@@ -22,7 +24,7 @@ const routes: RouteObject[] = [
         Component: SpaceWorkItemLayout,
         children: [
           {
-            path: ':spaceId',
+            path: ':spaceId/overview',
             Component: SpaceOverviewPage,
           },
           {
@@ -38,6 +40,14 @@ const routes: RouteObject[] = [
             Component: WorkItemPage,
           },
         ]
+      },
+      {
+        path: '/favorites',
+        Component: FavoritesPage
+      },
+      {
+        path: '/notifications',
+        Component: NoticeIndexPage
       },
       {
         path: '/login',

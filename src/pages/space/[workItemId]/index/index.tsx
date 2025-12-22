@@ -148,6 +148,7 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
   const inputRef = useRef<InputRef>(null);
   const form = use(EditableContext)!;
   const navigate = useNavigate();
+  const { workItemId, spaceId } = useParams<{ workItemId: string; spaceId: string }>();
 
   useEffect(() => {
     if (editing) {
@@ -187,9 +188,9 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
         className="group editable-cell-value-wrap relative w-full"
         style={{ paddingInlineEnd: 24 }}
       >
-        <span className='hover:text-[#3250eb] cursor-pointer' onClick={dataIndex === 'name' ? undefined : undefined}>{children}</span>
+        <span className='hover:text-[#3250eb] cursor-pointer' onClick={dataIndex === 'name' ? () => navigate(`/space/${spaceId}/${workItemId}/${record.id}/detail`) : undefined}>{children}</span>
         <div className='!absolute right-0 top-0 group-hover:block hidden'>
-          <Button icon={<EditOutlined />} onClick={toggleEdit} size='small' />
+          <Button icon={<EditOutlined />} onClick={(e) => (e.preventDefault(), toggleEdit())} size='small' />
         </div>
       </div>
     );
