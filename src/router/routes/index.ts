@@ -48,12 +48,12 @@ const routes: RouteObject[] = [
       {
         path: '/notifications',
         Component: NoticeIndexPage
-      },
-      {
-        path: '/login',
-        Component: LoginPage
       }
     ]
+  },
+  {
+    path: '/login',
+    Component: LoginPage
   }
 ];
 export default routes

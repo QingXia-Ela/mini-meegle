@@ -3,6 +3,6 @@
     "source.fixAll.eslint": "always"
   },
   "editor.defaultFormatter": "vscode.typescript-language-features",
-  "editor.formatOnSave": true,
+  "editor.formatOnSave": false,
   "eslint.enable": true
 }

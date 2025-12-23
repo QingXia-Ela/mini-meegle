@@ -4,6 +4,9 @@ import { AppService } from './app.service';
 import { SequelizeModule } from '@nestjs/sequelize';
 import 'dotenv/config';
 import { ExampleUserModule } from './example-user/example-user.module';
+import { AuthModule } from './auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 const {
   MYSQL_HOST,
@@ -26,8 +29,15 @@ const {
       synchronize: true,
     }),
     ExampleUserModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    AppService,
+  ],
 })
-export class AppModule {}
+export class AppModule { }

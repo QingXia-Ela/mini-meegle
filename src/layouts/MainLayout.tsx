@@ -1,10 +1,16 @@
 import React, { type HTMLAttributes } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
-import { Avatar, Popover, Button } from 'antd';
+import { Avatar, Popover, Button, notification } from 'antd';
 import { HomeFilled, AppstoreFilled, StarFilled, BellFilled, UserAddOutlined } from '@ant-design/icons';
 import MeegleLogo from '@/assets/meegle.svg'
+import { cleanLoginToken } from '@/api/request';
 
 const UserPopoverContent: React.FC = () => {
+  function logout() {
+    notification.info({ message: '已退出登录' });
+    cleanLoginToken()
+    window.location.href = '/login';
+  }
   return (
     <div className="w-60 text-[16px]">
       <div className="flex items-center justify-between space-x-3 p-2">
@@ -22,7 +28,7 @@ const UserPopoverContent: React.FC = () => {
           <span>个人信息</span>
         </div>
         <div className="py-2 hover:bg-gray-100 rounded px-4 cursor-pointer">偏好设置</div>
-        <div className="py-2 hover:bg-gray-100 rounded px-4 cursor-pointer text-red-500">退出登录</div>
+        <div className="py-2 hover:bg-gray-100 rounded px-4 cursor-pointer text-red-500" onClick={logout}>退出登录</div>
       </div>
     </div>
   );

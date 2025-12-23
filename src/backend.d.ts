@@ -1,0 +1,1 @@
+/// <reference types="../src-backend/**.dto.ts" />

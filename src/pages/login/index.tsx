@@ -1,6 +1,9 @@
-import  { useEffect, useState } from 'react'
-import { Input, Button, List, Avatar, Spin, Typography, message } from 'antd'
-import { AppstoreOutlined, UserOutlined, LockOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { Input, Button, List, Avatar, Spin, Typography, message, Form } from 'antd'
+import { AppstoreOutlined, UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
+import { apiLogin, apiRegister } from './api'
+import { cleanLoginToken, setLoginToken } from '@/api/request'
+import { useNavigate } from 'react-router'
 
 type Mode = 'login' | 'register' | 'list'
 
@@ -12,36 +15,42 @@ const sampleSpaces = [
 ]
 
 export default function LoginPage() {
+	const [form] = Form.useForm()
 	const [mode, setMode] = useState<Mode>('login')
-	const [account, setAccount] = useState('')
-	const [password, setPassword] = useState('')
-	const [loadingSpaces, setLoadingSpaces] = useState(false)
-	const [spaces, setSpaces] = useState<typeof sampleSpaces>([])
+	// const [loadingSpaces, setLoadingSpaces] = useState(false)
+	// const [spaces, setSpaces] = useState<typeof sampleSpaces>([])
+	const navigate = useNavigate()
 
 	useEffect(() => {
 		if (mode === 'list') {
-			setLoadingSpaces(true)
-			setSpaces([])
+			// setLoadingSpaces(true)
+			// setSpaces([])
 			// 模拟请求延迟
 			const t = setTimeout(() => {
-				setSpaces(sampleSpaces)
-				setLoadingSpaces(false)
+				// setSpaces(sampleSpaces)
+				// setLoadingSpaces(false)
 			}, 1200)
 			return () => clearTimeout(t)
 		}
 	}, [mode])
 
 	function onLogin() {
-		// 这里只做样式展示，假装登录成功
-		setMode('list')
+		apiLogin(form.getFieldsValue())
+			.then((res) => {
+				setLoginToken(res.access_token)
+				message.success('登录成功')
+				navigate('/', { replace: true })
+			})
 	}
 
 	function onRegister() {
-		// 模拟注册成功并切回登录
-		message.success('注册成功，已切换到登录')
-		setAccount('')
-		setPassword('')
-		setMode('login')
+		apiRegister(form.getFieldsValue())
+			.then(() => {
+				// 模拟注册成功并切回登录
+				message.success('注册成功，已切换到登录')
+				form.resetFields()
+				setMode('login')
+			})
 	}
 
 	return (
@@ -51,27 +60,49 @@ export default function LoginPage() {
 					<div>
 						<h2 className="text-2xl font-semibold text-gray-800 mb-4">{mode === 'login' ? '账号登录' : '新用户注册'}</h2>
 
-						<div className="space-y-4">
-							<Input
-								size="large"
-								placeholder="账号"
-								prefix={<UserOutlined />}
-								value={account}
-								onChange={(e) => setAccount(e.target.value)}
-							/>
+						<Form
+							form={form}
+							className="space-y-4"
+							validateTrigger={['onBlur']}
+							onFinish={() => {
+								if (mode === 'login') {
+									onLogin()
+								} else {
+									onRegister()
+								}
+							}}
+						>
+							<Form.Item
+								name={mode === 'login' ? 'emailOrUsername' : 'name'}
+								rules={
+									mode === 'register'
+										? [
+											{ required: true, message: '请输入用户名' },
+											{ min: 3, message: '用户名至少 3 位' },
+											{ pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线' },
+										]
+										: [{ required: true, message: '请输入用户名或邮箱' }]
+								}
+							>
+								<Input size="large" placeholder={mode === 'login' ? '用户名或邮箱' : '用户名'} prefix={<UserOutlined />} />
+							</Form.Item>
 
-							<Input.Password
-								size="large"
-								placeholder="密码"
-								prefix={<LockOutlined />}
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-							/>
+							{mode === 'register' && (
+								<Form.Item name="email" rules={[{ required: true, type: 'email', message: '请输入有效的邮箱' }]}>
+									<Input size="large" placeholder="邮箱" prefix={<MailOutlined />} />
+								</Form.Item>
+							)}
 
-							<Button type="primary" block size="large" onClick={mode === 'login' ? onLogin : onRegister}>
-								{mode === 'login' ? '登录' : '注册'}
-							</Button>
-						</div>
+							<Form.Item name="password" rules={[{ required: true, message: '请输入密码' }, { min: 6, message: '密码至少 6 位' }]}>
+								<Input.Password size="large" placeholder="密码" prefix={<LockOutlined />} />
+							</Form.Item>
+
+							<Form.Item>
+								<Button type="primary" block size="large" htmlType="submit">
+									{mode === 'login' ? '登录' : '注册'}
+								</Button>
+							</Form.Item>
+						</Form>
 
 						<div className="flex mt-4">
 							<Button type="link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
@@ -81,7 +112,7 @@ export default function LoginPage() {
 					</div>
 				)}
 
-				{mode === 'list' && (
+				{/* {mode === 'list' && (
 					<div>
 						<div className="flex items-center justify-between mb-4">
 							<div>
@@ -89,7 +120,10 @@ export default function LoginPage() {
 								<Typography.Text type="secondary">登录成功 — 请选择下面的一个空间继续</Typography.Text>
 							</div>
 							<div>
-								<Button size="small" onClick={() => setMode('login')}>退出</Button>
+								<Button size="small" onClick={() => {
+									cleanLoginToken()
+									setMode('login')
+								}}>退出</Button>
 							</div>
 						</div>
 
@@ -115,9 +149,9 @@ export default function LoginPage() {
 							)}
 						</div>
 					</div>
-				)}
+				)} */}
 			</div>
-		</div>
+		</div >
 	)
 }
 
