@@ -15,6 +15,10 @@
 - joinSpaces(space[])
 - favorites(favorite[])
 
+空间-用户关系(space_user)
+- uid[user]
+- sid[space]
+
 工作项(workItem)
 - sid(space[pk])
 - id[pk]
@@ -22,6 +26,10 @@
 - tasks(task[])
 - icon
 - fields(field[])
+
+工作项-空间关系(workItem_space)
+- sid[space]
+- wid[workItem]
 
 任务(task)
 - wid(workItem[pk])
@@ -31,6 +39,11 @@
 - fieldStatusList(fieldStatus[])
 - comments(comment[])
 - timestamp
+
+工作项-任务(workItem_task)
+- wid[workItem]
+- id[pk]
+- tid[task]
 
 任务类型(taskType)
 - id[pk]

@@ -3,12 +3,12 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import { Avatar, Popover, Button, notification } from 'antd';
 import { HomeFilled, AppstoreFilled, StarFilled, BellFilled, UserAddOutlined } from '@ant-design/icons';
 import MeegleLogo from '@/assets/meegle.svg'
-import { cleanLoginToken } from '@/api/request';
+import { cleanUserInfo } from '@/api/request';
 
 const UserPopoverContent: React.FC = () => {
   function logout() {
     notification.info({ message: '已退出登录' });
-    cleanLoginToken()
+    cleanUserInfo()
     window.location.href = '/login';
   }
   return (

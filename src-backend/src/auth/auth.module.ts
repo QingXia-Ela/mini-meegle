@@ -1,15 +1,14 @@
 import { Module } from '@nestjs/common';
-import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { User } from './user.model';
 import { JwtModule } from '@nestjs/jwt';
+import { UserModule } from '../user/user.module';
 
 const jwtSecret = process.env.JWT_SECRET || 'mini-meegle-secret';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([User]),
+    UserModule,
     JwtModule.register({
       secret: jwtSecret,
       signOptions: { expiresIn: '1h' },

@@ -1,6 +1,10 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { User } from './user.model';
+import { User } from '../user/user.model';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as crypto from 'crypto';
@@ -9,7 +13,10 @@ import { Op } from 'sequelize';
 
 @Injectable()
 export class AuthService {
-  constructor(@InjectModel(User) private userModel: typeof User, private jwtService: JwtService) { }
+  constructor(
+    @InjectModel(User) private userModel: typeof User,
+    private jwtService: JwtService,
+  ) {}
 
   private md5(p: string) {
     return crypto.createHash('md5').update(p).digest('hex');
@@ -24,16 +31,27 @@ export class AuthService {
     });
     if (exist) throw new ConflictException('邮箱或用户名已被注册');
     const hashed = this.md5(dto.password);
-    const user = (await this.userModel.create({ name: dto.name, email: dto.email, md5pwd: hashed })).get({ plain: true });
+    const user = (
+      await this.userModel.create({
+        name: dto.name,
+        email: dto.email,
+        md5pwd: hashed,
+      })
+    ).get({ plain: true });
     return this.sanitize(user);
   }
 
   async login(dto: LoginDto) {
     const key = dto.emailOrUsername;
-    const user = (await this.userModel.findOne({ where: { [Op.or]: [{ email: key }, { name: key }] } }))?.get({ plain: true });
+    const user = (
+      await this.userModel.findOne({
+        where: { [Op.or]: [{ email: key }, { name: key }] },
+      })
+    )?.get({ plain: true });
     if (!user) throw new UnauthorizedException('账号或密码错误');
     const hashed = this.md5(dto.password);
-    if (user.md5pwd !== hashed) throw new UnauthorizedException('账号或密码错误');
+    if (user.md5pwd !== hashed)
+      throw new UnauthorizedException('账号或密码错误');
 
     const payload = { sub: user.id, email: user.email, name: user.name };
     const accessToken = this.jwtService.sign(payload);

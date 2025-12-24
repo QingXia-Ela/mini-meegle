@@ -20,7 +20,7 @@ const routes: RouteObject[] = [
         Component: TablePage,
       },
       {
-        path: 'space',
+        path: '/space',
         Component: SpaceWorkItemLayout,
         children: [
           {

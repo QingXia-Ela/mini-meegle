@@ -14,9 +14,18 @@ async function bootstrap() {
 
   // Ensure all responses include common CORS headers (fallback for proxies)
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      process.env.CORS_ORIGIN || '*',
+    );
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    );
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Accept, Authorization',
+    );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -25,7 +34,9 @@ async function bootstrap() {
     return next();
   });
 
-  console.log(`Server is running on http://localhost:${process.env.PORT ?? 3000}`);
+  console.log(
+    `Server is running on http://localhost:${process.env.PORT ?? 3000}`,
+  );
   await app.listen(process.env.PORT ?? 3000);
 }
 

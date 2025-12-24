@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { Task } from './task.model';
+import { WorkItemTask } from './work-item-task.model';
+import { TaskService } from './task.service';
+import { TaskController } from './task.controller';
+
+@Module({
+  imports: [SequelizeModule.forFeature([Task, WorkItemTask])],
+  providers: [TaskService],
+  controllers: [TaskController],
+  exports: [TaskService],
+})
+export class TaskModule {}

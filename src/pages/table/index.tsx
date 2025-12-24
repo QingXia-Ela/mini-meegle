@@ -4,6 +4,7 @@ import CategoryList from './components/CategoryList';
 import { Button, Table } from 'antd';
 import dayjs from 'dayjs';
 import { Tag } from 'antd';
+import { useUserStore } from '@/store/user';
 
 const data = Array.from({ length: 20 }).map((_, index) => ({
   id: 1,
@@ -105,6 +106,7 @@ function MyWorkCard() {
 }
 
 function TablePage() {
+  const { userInfo } = useUserStore();
   return (
     <>
       <header className="flex py-3 px-5 w-full bg-white border-b border-[#cacbcd] items-center">
@@ -114,7 +116,7 @@ function TablePage() {
         <span className='ml-3 text-lg'>工作台</span>
       </header>
       <div className='py-8 flex flex-col items-center w-full'>
-        <GreetingHeader name='123' />
+        <GreetingHeader name={userInfo?.user.name} />
         <div className='mt-6 px-36 w-full flex flex-col items-center'>
           <MyWorkCard />
         </div>

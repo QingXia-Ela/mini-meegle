@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import { Input, Button, List, Avatar, Spin, Typography, message, Form } from 'antd'
 import { AppstoreOutlined, UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 import { apiLogin, apiRegister } from './api'
-import { cleanLoginToken, setLoginToken } from '@/api/request'
 import { useNavigate } from 'react-router'
+import { useUserStore } from '@/store/user'
+import { setUserInfo } from '@/api/request'
 
 type Mode = 'login' | 'register' | 'list'
 
@@ -20,6 +21,7 @@ export default function LoginPage() {
 	// const [loadingSpaces, setLoadingSpaces] = useState(false)
 	// const [spaces, setSpaces] = useState<typeof sampleSpaces>([])
 	const navigate = useNavigate()
+	const { setUserInfo: setUserInfoForStore } = useUserStore()
 
 	useEffect(() => {
 		if (mode === 'list') {
@@ -37,7 +39,8 @@ export default function LoginPage() {
 	function onLogin() {
 		apiLogin(form.getFieldsValue())
 			.then((res) => {
-				setLoginToken(res.access_token)
+				setUserInfoForStore(res)
+				setUserInfo(JSON.stringify(res))
 				message.success('登录成功')
 				navigate('/', { replace: true })
 			})

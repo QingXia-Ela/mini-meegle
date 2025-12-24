@@ -11,16 +11,16 @@ interface ModifyRequestInit extends Omit<RequestInit, 'body'> {
   body?: Record<string, any> | string | RequestInit['body'];
 }
 
-export function setLoginToken(token: string) {
-  localStorage.setItem('token', token);
+export function setUserInfo(info: string) {
+  localStorage.setItem('userInfo', info);
 }
 
-export function getLoginToken() {
-  return localStorage.getItem('token');
+export function getUserInfo() {
+  return JSON.parse(localStorage.getItem('userInfo') || 'null');
 }
 
-export function cleanLoginToken() {
-  localStorage.removeItem('token');
+export function cleanUserInfo() {
+  localStorage.removeItem('userInfo');
 }
 
 async function request<T = any>(input: string, init: ModifyRequestInit = {}, opts: RequestOptions = { showError: true }): Promise<T> {
@@ -29,8 +29,8 @@ async function request<T = any>(input: string, init: ModifyRequestInit = {}, opt
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
 
-  const token = localStorage.getItem('token');
-
+  const token = getUserInfo()?.access_token;
+  
   const headers = new Headers(init.headers ?? {});
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
@@ -48,17 +48,80 @@ async function request<T = any>(input: string, init: ModifyRequestInit = {}, opt
     clearTimeout(timer);
     requestWebConnectSuccessMarked = true;
 
+    const text = await res.text();
+    if (!text) {
+      // 空响应体，检查状态码
+      if (!res.ok) {
+        if (res.status === 401) {
+          cleanUserInfo();
+          window.location.href = '/login';
+          return Promise.reject(new Error('未授权，请重新登录'));
+        }
+        const err: any = new Error(`${res.status} ${res.statusText}`);
+        err.status = res.status;
+        err.response = res;
+        throw err;
+      }
+      return undefined as unknown as T;
+    }
+
+    // 解析响应体
+    let responseData: any;
+    try {
+      responseData = JSON.parse(text);
+    } catch {
+      // 如果不是 JSON，直接返回文本
+      if (!res.ok) {
+        const err: any = new Error(text || `${res.status} ${res.statusText}`);
+        err.status = res.status;
+        err.response = res;
+        throw err;
+      }
+      return text as unknown as T;
+    }
+
+    // 检查是否是统一响应格式 { code, msg, data }
+    if (responseData && typeof responseData === 'object' && 'code' in responseData) {
+      const { code, msg, data } = responseData;
+      
+      // 如果 code 不是 200，视为错误
+      if (code !== 200) {
+        if (code === 401) {
+          cleanUserInfo();
+          window.location.href = '/login';
+          return Promise.reject(new Error(msg || '未授权，请重新登录'));
+        }
+
+        if (showError) {
+          notification.error({
+            message: '请求错误',
+            description: msg || `${code} 错误`,
+            duration: 5,
+          });
+        }
+
+        const err: any = new Error(msg || `${code} 错误`);
+        err.status = res.status;
+        err.code = code;
+        err.response = res;
+        throw err;
+      }
+
+      // code === 200，返回 data
+      return data as T;
+    }
+
+    // 如果不是统一响应格式，保持原有逻辑
     if (!res.ok) {
       if (res.status === 401) {
-        cleanLoginToken();
+        cleanUserInfo();
         window.location.href = '/login';
         return Promise.reject(new Error('未授权，请重新登录'));
       }
       let message = `${res.status} ${res.statusText}`;
-      try {
-        const data = await res.clone().json();
-        if (data && (data.message || data.msg)) message = data.message ?? data.msg;
-      } catch { /** todo */ }
+      if (responseData && (responseData.message || responseData.msg)) {
+        message = responseData.message ?? responseData.msg;
+      }
 
       if (showError) {
         notification.error({
@@ -74,13 +137,7 @@ async function request<T = any>(input: string, init: ModifyRequestInit = {}, opt
       throw err;
     }
 
-    const text = await res.text();
-    if (!text) return undefined as unknown as T;
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      return text as unknown as T;
-    }
+    return responseData as T;
   } catch (error: any) {
     clearTimeout(timer);
     if (requestWebConnectSuccessMarked) {

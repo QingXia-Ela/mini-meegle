@@ -3,8 +3,7 @@ import { data, useNavigate, useParams, useRoutes } from 'react-router';
 import WorkItemStatusView from './components/WorkItemStatusView';
 import { Button, Form, Input, Table, Tabs, type InputRef, type TabsProps, type FormInstance, Select, DatePicker } from 'antd';
 import MeegleCardFrame from '@/components/workItem/MeegleCardFrame';
-import { createContext, use, useEffect, useRef, useState } from 'react';
-import router from '@/router';
+import { createContext, use, useContext, useEffect, useRef, useState } from 'react';
 
 const items: TabsProps['items'] = [
   {
@@ -119,9 +118,9 @@ const EditableRow: React.FC<EditableRowProps> = ({ index: _index, ...props }) =>
   const [form] = Form.useForm();
   return (
     <Form form={form} component={false}>
-      <EditableContext value={form}>
+      <EditableContext.Provider value={form}>
         <tr {...props} />
-      </EditableContext>
+      </EditableContext.Provider>
     </Form>
   );
 };
@@ -146,7 +145,7 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
 }) => {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<InputRef>(null);
-  const form = use(EditableContext)!;
+  const form = useContext(EditableContext)!;
   const navigate = useNavigate();
   const { workItemId, spaceId } = useParams<{ workItemId: string; spaceId: string }>();
 
@@ -198,7 +197,13 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
 
   return <td {...restProps}>{childNode}</td>;
 };
-
+const components = {
+    body: {
+      row: EditableRow,
+      cell: EditableCell,
+    },
+};
+  
 function WorkItemList() {
   const [dataSource, setDataSource] = useState<DataType[]>(Array.from({ length: 60 }).map((_, idx) => ({
     id: idx + 1,
@@ -241,12 +246,7 @@ function WorkItemList() {
   });
 
 
-  const components = {
-    body: {
-      row: EditableRow,
-      cell: EditableCell,
-    },
-  };
+  
 
   return (
     <Table
