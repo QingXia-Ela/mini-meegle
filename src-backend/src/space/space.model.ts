@@ -10,7 +10,12 @@ import { User } from '../user/user.model';
 import { SpaceUser } from './space-user.model';
 import { generateUniqueId } from '../utils/id-generator';
 
-@Table({ tableName: 'spaces', timestamps: true })
+@Table({
+  tableName: 'spaces',
+  timestamps: true,
+  charset: 'utf8mb4',
+  collate: 'utf8mb4_unicode_ci',
+})
 export class Space extends Model {
   @Column({
     type: DataType.STRING(10),
@@ -26,10 +31,10 @@ export class Space extends Model {
     }
   }
 
-  @Column({ type: DataType.STRING, allowNull: true })
+  @Column({ type: DataType.TEXT, allowNull: true })
   icon: string;
 
-  @Column({ type: DataType.STRING, allowNull: false })
+  @Column({ type: DataType.TEXT, allowNull: false })
   name: string;
 
   @BelongsToMany(() => User, () => SpaceUser)

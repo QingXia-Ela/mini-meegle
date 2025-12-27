@@ -2,7 +2,7 @@ import { App } from '@/App';
 import FavoritesPage from '@/pages/favorites/index';
 import LoginPage from '@/pages/login';
 import NoticeIndexPage from '@/pages/notifications/index/index';
-import TaskDetailRoutePage from '@/pages/space/[workItemId]/detail/[taskId]';
+import TaskDetailRoutePage from '@/pages/space/[workItemId]/[taskId]/detail';
 import WorkItemPage from '@/pages/space/[workItemId]/index';
 import SpaceWorkItemLayout from '@/pages/space/_layout/SpaceWorkItemLayout';
 import SpaceOverviewPage from '@/pages/space/overview';

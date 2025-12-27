@@ -41,6 +41,7 @@ export default defineConfig([
         'warn',
         { props: 'never', children: 'never', propElementValues: 'always' },
       ],
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
       '@stylistic/quotes': ['warn', 'single'],
       '@typescript-eslint/no-empty-object-type': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',

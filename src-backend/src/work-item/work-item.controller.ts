@@ -11,7 +11,7 @@ import { WorkItemService } from './work-item.service';
 import { CreateWorkItemDto } from './dto/create-work-item.dto';
 import { UpdateWorkItemDto } from './dto/update-work-item.dto';
 
-@Controller('work-items')
+@Controller('workItems')
 export class WorkItemController {
   constructor(private readonly service: WorkItemService) {}
 

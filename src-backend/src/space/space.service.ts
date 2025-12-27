@@ -4,6 +4,7 @@ import { Space } from './space.model';
 import { SpaceUser } from './space-user.model';
 import { CreateSpaceDto } from './dto/create-space.dto';
 import { UpdateSpaceDto } from './dto/update-space.dto';
+import { generateUniqueId } from '../utils/id-generator';
 
 @Injectable()
 export class SpaceService {
@@ -13,7 +14,15 @@ export class SpaceService {
   ) {}
 
   async create(dto: CreateSpaceDto, userId: number): Promise<Space> {
-    const space = await this.spaceModel.create(dto as any);
+    // 生成唯一ID
+    const id = await generateUniqueId(this.spaceModel, 6);
+
+    // 创建空间，明确设置ID
+    const space = await this.spaceModel.create({
+      ...dto,
+      id,
+    } as any);
+
     // 将创建者添加到空间-用户关系表
     await this.spaceUserModel.create({
       uid: userId,

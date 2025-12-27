@@ -40,6 +40,12 @@ const {
         timestamps: true,
         underscored: false,
         freezeTableName: true,
+        charset: 'utf8mb4',
+        collate: 'utf8mb4_unicode_ci',
+      },
+      dialectOptions: {
+        charset: 'utf8mb4',
+        collate: 'utf8mb4_unicode_ci',
       },
       pool: {
         max: 5,

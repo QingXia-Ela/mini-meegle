@@ -1,9 +1,11 @@
-import { HomeFilled, ReloadOutlined } from '@ant-design/icons';
+import { HomeFilled, ReloadOutlined, PlusOutlined, SettingFilled } from '@ant-design/icons';
 import { Select, Spin, Button, Empty } from 'antd';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router';
 import { useState, useEffect } from 'react';
 import SidebarSelectItem from './components/SidebarSelectItem';
+import CreateSpaceModal from './components/CreateSpaceModal';
 import useWorkspaceList from './hooks/useWorkspaceList';
+import defaultSpaceIcon from './assets/defaultSpaceIcon.png';
 
 interface Space {
   id: string;
@@ -25,6 +27,7 @@ function SpaceWorkItemLayout() {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | undefined>(
     params.spaceId,
   );
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const {
     spaces,
@@ -47,7 +50,7 @@ function SpaceWorkItemLayout() {
     if (selectedSpaceId) {
       fetchWorkItems(selectedSpaceId);
     }
-  }, [selectedSpaceId, fetchWorkItems]);
+  }, [selectedSpaceId]);
 
   // 处理空间选择变化
   const handleSpaceChange = (value: string) => {
@@ -75,11 +78,40 @@ function SpaceWorkItemLayout() {
     }
   };
 
+  // 处理创建空间成功
+  const handleCreateSpaceSuccess = () => {
+    requestSpaces();
+  };
+
+  // 获取空间图标（base64 或默认图标）
+  const getSpaceIcon = (space: Space) => {
+    if (space.icon) {
+      // 如果是 base64 格式
+      if (space.icon.startsWith('data:image')) {
+        return space.icon;
+      }
+      // 如果是 URL
+      return space.icon;
+    }
+    return defaultSpaceIcon;
+  };
+
   // 将空间数据转换为 Select 的 options
   const spaceOptions = spaces
     ? (spaces as Space[]).map((space) => ({
         value: space.id,
-        label: space.name,
+        label: (
+          <div className="flex items-center gap-2">
+            <img
+              src={getSpaceIcon(space)}
+              alt=""
+              className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
+            />
+            <span>{space.name}</span>
+          </div>
+        ),
+        icon: getSpaceIcon(space),
+        name: space.name,
       }))
     : [];
 
@@ -114,8 +146,41 @@ function SpaceWorkItemLayout() {
               )
             }
             options={spaceOptions}
+            optionRender={(option) => (
+              <div className="flex items-center gap-2">
+                <img
+                  src={option.data.icon}
+                  alt=""
+                  className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
+                />
+                <span>{option.data.name}</span>
+              </div>
+            )}
+            optionLabelProp="label"
+            dropdownRender={(menu) => (
+              <>
+                {menu}
+                <div className="border-t border-gray-200 p-2">
+                  <Button
+                    type="text"
+                    block
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreateModalOpen(true)}
+                  >
+                    新建空间
+                  </Button>
+                </div>
+              </>
+            )}
           />
         </div>
+
+        {/* 创建空间弹窗 */}
+        <CreateSpaceModal
+          open={createModalOpen}
+          onCancel={() => setCreateModalOpen(false)}
+          onSuccess={handleCreateSpaceSuccess}
+        />
 
         {/* 工作项列表 */}
         {selectedSpaceId && (
@@ -176,8 +241,9 @@ function SpaceWorkItemLayout() {
               <SidebarSelectItem
                 active={isRouteActive(`/space/${selectedSpaceId}/settings`)}
                 onClick={() => navigate(`/space/${selectedSpaceId}/settings`)}
+                iconBackgroundColor='bg-[#6b7280]'
                 icon={
-                  <HomeFilled style={{ color: '#fff', fontSize: '12px' }} />
+                  <SettingFilled style={{ color: '#fff', fontSize: '12px' }} />
                 }
                 label="空间设置"
               />

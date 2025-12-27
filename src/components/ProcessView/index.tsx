@@ -1,12 +1,7 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import ProcessNode from './ProcessNode';
+import { useEffect, useRef } from 'react';
 import cytoscape from 'cytoscape';
 import type { ProcessNodeType } from './types';
-import { getColorByStatus, parseProcessNodesIntoCytoscapeElements } from './utils';
-import GrayBorderCard from '../GrayBorderCard';
-import { Button, Collapse, Form, Input, Popover, Select, Table, Tabs, Tag } from 'antd';
-import { MoreOutlined } from '@ant-design/icons';
-import ProcessViewComment from '../TaskDetailPage/components/ProcessBottomInfo/Comment';
+import { PRECOMPUTED_CURVATURE_STYLES, parseProcessNodesIntoCytoscapeElements } from './utils';
 
 interface ProcessViewProps {
   editMode?: boolean;
@@ -14,19 +9,23 @@ interface ProcessViewProps {
 }
 
 
-function ProcessView({ editMode, nodes }: ProcessViewProps) {
+function ProcessView({ nodes }: ProcessViewProps) {
 
-  const cytoRef = useRef<cytoscape.Core>(null)
+  const cytoRef = useRef<cytoscape.Core | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // 初始化 cytoscape 实例（仅挂载时）
   useEffect(() => {
+    if (!containerRef.current) return
+
     const pan = {
-      x: (containerRef.current?.clientWidth || 0) / 2,
-      y: (containerRef.current?.clientHeight || 0) / 2,
+      x: (containerRef.current.clientWidth || 0) / 2,
+      y: (containerRef.current.clientHeight || 0) / 2,
     }
+
     cytoRef.current = cytoscape({
       container: containerRef.current,
-      elements: parseProcessNodesIntoCytoscapeElements(nodes),
+      elements: [],
       zoomingEnabled: false,
       userZoomingEnabled: false,
       panningEnabled: false,
@@ -39,16 +38,34 @@ function ProcessView({ editMode, nodes }: ProcessViewProps) {
             'width': 1,
             'line-color': '#aaa',
             'curve-style': 'unbundled-bezier',
-            'control-point-distances': [12, -12],
-            'control-point-weights': [0.25, 0.75]
+            // 直接读取预计算的 data 值
+            'control-point-distances': (ele) => {
+              console.log(ele.data('control-point-distances'));
+              
+              return ele.data('control-point-distances')
+            },
+            'control-point-weights': (ele) => ele.data('control-point-weights'),
           }
-        }
+        },
       ]
     })
+
+    return () => {
+      if (cytoRef.current) {
+        cytoRef.current.destroy()
+        cytoRef.current = null
+      }
+    }
   }, [])
+
+  // 当 nodes 变化时，更新图表元素
   useEffect(() => {
     if (!cytoRef.current) return
-    // cytoRef.current.data()
+    const elements = parseProcessNodesIntoCytoscapeElements(nodes)
+    if (elements && Array.isArray(elements)) {
+      cytoRef.current.elements().remove()
+      cytoRef.current.add(elements as cytoscape.ElementDefinition[])
+    }
   }, [nodes])
   return (
     <div className="h-full flex justify-center items-center flex-1 w-full" ref={containerRef}>
