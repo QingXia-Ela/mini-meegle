@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import cytoscape from 'cytoscape';
+import type { EdgeSingular, NodeSingular } from 'cytoscape';
 import type { ProcessNodeType } from './types';
-import { PRECOMPUTED_CURVATURE_STYLES, parseProcessNodesIntoCytoscapeElements } from './utils';
+import { getColorByStatus, parseProcessNodesIntoCytoscapeElements } from './utils';
 
 interface ProcessViewProps {
   editMode?: boolean;
@@ -13,6 +14,16 @@ function ProcessView({ nodes }: ProcessViewProps) {
 
   const cytoRef = useRef<cytoscape.Core | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const buildStatusDot = (status?: string) => {
+    const color = getColorByStatus(status || '');
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">
+        <circle cx="6" cy="6" r="5" fill="${color.backgroundColor}" stroke="${color.borderColor}" stroke-width="1" />
+      </svg>
+    `;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
 
   // 初始化 cytoscape 实例（仅挂载时）
   useEffect(() => {
@@ -26,12 +37,43 @@ function ProcessView({ nodes }: ProcessViewProps) {
     cytoRef.current = cytoscape({
       container: containerRef.current,
       elements: [],
-      zoomingEnabled: false,
-      userZoomingEnabled: false,
+      // zoomingEnabled: false,
+      // userZoomingEnabled: false,
       panningEnabled: false,
       userPanningEnabled: false,
       pan,
       style: [
+        {
+          selector: 'node',
+          style: {
+            'shape': 'round-rectangle',
+            'width': (ele: NodeSingular) => {
+              const data = ele.scratch('vanillaData') as ProcessNodeType | undefined
+              return (data?.name?.length || 0) * 16 + 24
+            },
+            'height': 1,
+            'padding': '16px',
+            'label': (ele: NodeSingular) => {
+              const data = ele.scratch('vanillaData') as ProcessNodeType | undefined
+              return data?.name || ''
+            },
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'font-size': 16,
+            'color': '#4a4a4a',
+            'background-color': '#ffffff',
+            'background-width': '10px',
+            'background-height': '10px',
+            'background-position-x': '10px',
+            'background-repeat': 'no-repeat',
+            'background-image': (ele: NodeSingular) => {
+              const data = ele.scratch('vanillaData') as ProcessNodeType | undefined
+              return buildStatusDot(data?.status)
+            },
+            'border-width': 1,
+            'border-color': 'gray',
+          }
+        },
         {
           selector: 'edge',
           style: {
@@ -39,13 +81,35 @@ function ProcessView({ nodes }: ProcessViewProps) {
             'line-color': '#aaa',
             'curve-style': 'unbundled-bezier',
             // 直接读取预计算的 data 值
-            'control-point-distances': (ele) => {
-              console.log(ele.data('control-point-distances'));
-              
-              return ele.data('control-point-distances')
-            },
-            'control-point-weights': (ele) => ele.data('control-point-weights'),
+            'control-point-distances': (ele: EdgeSingular) => ele.data('control-point-distances'),
+            'control-point-weights': (ele: EdgeSingular) => ele.data('control-point-weights'),
           }
+        },
+        {
+          selector: 'node:selected',
+          style: {
+            'overlay-opacity': 0,
+            'active-bg-opacity': 0,
+          },
+        },
+        {
+          selector: 'edge:selected',
+          style: {
+            'overlay-opacity': 0,
+          },
+        },
+        {
+          selector: 'node:active',
+          style: {
+            'overlay-opacity': 0,
+            'active-bg-opacity': 0,
+          },
+        },
+        {
+          selector: 'edge:active',
+          style: {
+            'overlay-opacity': 0,
+          },
         },
       ]
     })

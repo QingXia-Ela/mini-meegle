@@ -1,7 +1,6 @@
 import { CloseOutlined, HomeFilled } from '@ant-design/icons';
 import { Button } from 'antd';
 import { useNavigate } from 'react-router';
-import ProcessMemberSelector from './components/ProcessMemberSelector';
 import ProcessView from '../ProcessView';
 import { BasicMap } from '../ProcessView/exampleMap';
 import ProcessBottomInfo from './components/ProcessBottomInfo';
@@ -30,8 +29,8 @@ function TaskDetailPage({ spaceId, workItemId, taskId }: TaskDetailPageProps) {
       </header>
       <div className='flex-1 overflow-auto'>
         <div className='flex flex-col'>
-          <ProcessMemberSelector />
-          <div className="h-76 w-full">
+          {/* <ProcessMemberSelector /> */}
+          <div className="h-104 w-full">
             <ProcessView nodes={Object.values(BasicMap)} />
           </div>
           <ProcessBottomInfo />

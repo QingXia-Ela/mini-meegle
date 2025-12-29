@@ -69,8 +69,8 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
     const layer = nodeLayerMap[id] ?? 0
     const layerOrder = nodeYAxisOrderMap[layer] ?? []
     const yIndex = layerOrder.indexOf(id)
-    const x = layer * 120
-    const y = ((yIndex === -1 ? 0 : yIndex) * 60) - ((layerOrder.length - 1) * 30)
+    const x = layer * 180
+    const y = ((yIndex === -1 ? 0 : yIndex) * 50) - ((layerOrder.length - 1) * 25)
 
     // 将 position 加入到节点的原始数据副本中（不直接修改原对象）
     const vanillaWithPos = { ...n, position: { x, y } }
@@ -139,22 +139,21 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
       const connectedRightNodes = leftNodeConnections[leftNodeId] || []
       if (connectedRightNodes.length === 0) return
 
-      // 左侧点总数：该节点连接的所有右侧节点数（在当前区间内）
-      const leftTotal = connectedRightNodes.length
+      // 左侧点总数：该节点所在区间的节点总数
+      const leftTotal = layerNodesMap[layer].length
 
       // 为每条连接创建边
-      connectedRightNodes.forEach((rightNodeId, leftIndex) => {
+      connectedRightNodes.forEach((rightNodeId) => {
         // 计算右侧节点在右侧层中的 y 索引
-        const rightYIndex = rightLayerNodes.indexOf(rightNodeId)
-        if (rightYIndex === -1) return
+        const rightIndex = rightLayerNodes.findIndex(node => node === rightNodeId)
+        if (rightIndex === -1) return
 
         // 右侧点总数：该右侧节点从左侧接收的连接数（在当前区间内）
-        const incomingFromLeft = rightNodeIncomingConnections[rightNodeId] || []
-        const rightTotal = incomingFromLeft.length
+        const rightTotal = layerNodesMap[layer + 1].length
 
         // 计算右侧点终点序号：当前左侧节点在右侧节点的输入连接中的位置
-        const rightIndex = incomingFromLeft.indexOf(leftNodeId)
-        if (rightIndex === -1) return
+        const leftIndex = leftLayerNodes.findIndex(node => node === leftNodeId)
+        if (leftIndex === -1) return
 
         // 根据规范 44：边的标识信息
         // `${左侧点总数}-${当前边左侧点起点序号}-${右侧点总数}-${右侧点终点序号}`
@@ -162,6 +161,9 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
 
         // 预计算曲线样式（上限 16）
         const curvatureStyle = getPrecomputedCurvatureStyle(leftTotal, leftIndex, rightTotal, rightIndex)
+
+        console.log(leftNodeId, rightNodeId, leftIndex, rightIndex, leftTotal, rightTotal, curvatureStyle);
+        
 
         // 在边的 data 中存储预计算的样式值
         elements.push({
@@ -207,14 +209,84 @@ function curveCaleWithoutAlign(leftTotal: number, leftIndex: number, rightTotal:
   'control-point-distances': [number, number];
   'control-point-weights': [number, number];
 } {
-  const basicDistance = 15;
-  const basicWeight = 0.3;
   const startAlignIndex = (leftTotal - rightTotal);
-  const distance = basicDistance * ((-(leftIndex*2) + startAlignIndex + (rightIndex*2)) / 2);
-  const weight = basicWeight / Math.abs((leftIndex*2) - startAlignIndex - (rightIndex*2) / 2);
+  const caseOfHeight = ((-(leftIndex * 2) + startAlignIndex + (rightIndex * 2)) / 2);
+  // 最大为 6.5，每次递增或递减 1
+  switch (caseOfHeight) {
+    case -4.5:
+      return {
+        'control-point-distances': [20, -20],
+        'control-point-weights': [0.34, 0.66]
+      }
+    case -3.5:
+      return {
+        'control-point-distances': [54,-54],
+        'control-point-weights': [0.15,0.85]
+      }
+    case -2.5:
+      return {
+        'control-point-distances': [46,-46],
+        'control-point-weights': [0.20,0.8]
+      }
+    case -1.5:
+      return {
+        'control-point-distances':[28,-28],
+        'control-point-weights': [0.25,0.75]
+      }
+    case -0.5:
+      return {
+        'control-point-distances': [10,-10],
+        'control-point-weights': [0.25,0.75]
+      }
+      case 0.5:
+        return {
+          'control-point-distances': [-10,10],
+          'control-point-weights': [0.25,0.75]
+        }
+    case 1.5:
+      return {
+        'control-point-distances': [-28,28],
+        'control-point-weights': [0.25,0.75]
+      }
+    case 2.5:
+      return {
+        'control-point-distances': [-46,46],
+        'control-point-weights': [0.20,0.8]
+      }
+    case 3.5:     
+      return {
+        'control-point-distances': [-54,54],
+        'control-point-weights': [0.15,0.85]
+      }
+    case 4.5:
+      return {
+        'control-point-distances': [-20,20],
+        'control-point-weights': [0.34,0.66]
+      }
+    case -5.5:
+      return {
+        'control-point-distances': [28,-28],
+        'control-point-weights': [0.26,0.74]
+      }
+    case 5.5:
+      return {
+        'control-point-distances': [-28,28],
+        'control-point-weights': [0.26,0.74]
+      }
+    case -6.5:
+      return {
+        'control-point-distances': [32,-32],
+        'control-point-weights': [0.2,0.8]
+      }
+    case 6.5:
+      return {
+        'control-point-distances': [-32,32],
+        'control-point-weights': [0.2,0.8]
+      }
+  }
   return {
-    'control-point-distances': [distance, -distance],
-    'control-point-weights': [weight, 1 - weight]
+    'control-point-distances': [0,0],
+    'control-point-weights': [0.5,0.5]
   }
 }
 
@@ -222,14 +294,46 @@ function curveCaleWithAlign(leftTotal: number, leftIndex: number, rightTotal: nu
   'control-point-distances': [number, number];
   'control-point-weights': [number, number];
 } {
-  const basicDistance = 20;
-  const basicWeight = 0.3;
+  // 单数可以启用 alignIndex
   const startAlignIndex = (leftTotal - rightTotal) / 2;
-  const distance = basicDistance * (-leftIndex + startAlignIndex + rightIndex);
-  const weight = basicWeight / Math.abs(leftIndex - startAlignIndex - rightIndex);
+  const caseOfHeight = (-leftIndex + startAlignIndex + rightIndex);
+  switch (caseOfHeight) {
+    case -1:
+      return {
+        'control-point-distances': [17,-17],
+        'control-point-weights': [0.2,0.8]
+      }
+    case 1:
+      return {
+        'control-point-distances': [-17,17],
+        'control-point-weights': [0.2,0.8]
+      }
+    case -2:
+      return {
+        'control-point-distances': [34,-34],
+        'control-point-weights': [0.2,0.8]
+      }
+    case 2:
+      return {
+        'control-point-distances': [-34,34],
+        'control-point-weights': [0.2,0.8]
+      }
+    case -3:
+      return {
+        'control-point-distances': [51,-51],
+        'control-point-weights': [0.2,0.8]
+      }
+    case 3:
+      return {
+        'control-point-distances': [-51,51],
+        'control-point-weights': [0.2,0.8]
+      }
+  }
+
+
   return {
-    'control-point-distances': [distance, -distance],
-    'control-point-weights': [weight, 1 - weight]
+    'control-point-distances': [0,0],
+    'control-point-weights': [0.5,0.5]
   }
 }
 
@@ -249,8 +353,8 @@ export function calculateBezierCurvature(
   rightTotal: number,
   rightIndex: number
 ): {
-  'control-point-distances'?: [number, number];
-  'control-point-weights'?: [number, number];
+  'control-point-distances': [number, number];
+  'control-point-weights': [number, number];
 } {
   // 确保索引在有效范围内
   leftIndex = Math.max(0, Math.min(leftIndex, leftTotal - 1));
@@ -350,7 +454,7 @@ export function getPrecomputedCurvatureStyle(
 
   // 默认值
   return {
-    'control-point-distances': [-12, 12],
-    'control-point-weights': [0.25, 0.75]
+    'control-point-distances': [0,0],
+    'control-point-weights': [0.5, 0.5]
   }
 }
