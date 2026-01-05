@@ -10,8 +10,16 @@ export interface ProcessNodeType {
   status: ProcessNodeStatusType
   canDelete: boolean
   canUndo: boolean
-  prevNodes: ProcessNodeIdType[]
-  nextNodes: ProcessNodeIdType[]
+  prevNodes: (ProcessNodeIdType | ProcessVirtualNodeType)[]
+  nextNodes: (ProcessNodeIdType | ProcessVirtualNodeType)[]
+  [key: string]: any
+}
+
+export interface ProcessVirtualNodeType {
+  type: 'virtual_node'
+  id: string
+  prevNodes: (ProcessNodeIdType | ProcessVirtualNodeType)[]
+  nextNodes: (ProcessNodeIdType | ProcessVirtualNodeType)[]
   [key: string]: any
 }
 

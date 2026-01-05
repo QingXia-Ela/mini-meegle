@@ -1,4 +1,4 @@
-import type { ProcessNodeType } from './types';
+import type { ProcessNodeType, ProcessVirtualNodeType } from './types';
 import type cytoscape from 'cytoscape';
 
 const DEFAULT_OPTIONS = {
@@ -8,9 +8,13 @@ const DEFAULT_OPTIONS = {
   pannable: false,
 }
 
+const X_LAYER_WIDTH = 180
+const Y_NODE_HEIGHT = 50
+const Y_NODE_HALF_HEIGHT = Y_NODE_HEIGHT / 2
+
 export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[]): cytoscape.CytoscapeOptions['elements'] {
   // 构造 id -> node 映射（id 统一为字符串）
-  const nodeMap: Record<string, ProcessNodeType> = {}
+  const nodeMap: Record<string, ProcessNodeType | ProcessVirtualNodeType> = {}
   nodes.forEach((n) => { nodeMap[String(n.id)] = n })
 
   // 记录每个节点的层数（layer），以及每层的遍历顺序
@@ -63,21 +67,6 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
   // 构建 cytoscape elements，节点包含 position 字段
   const elements: cytoscape.CytoscapeOptions['elements'] = []
 
-  // 节点位置计算
-  nodes.forEach((n) => {
-    const id = String(n.id)
-    const layer = nodeLayerMap[id] ?? 0
-    const layerOrder = nodeYAxisOrderMap[layer] ?? []
-    const yIndex = layerOrder.indexOf(id)
-    const x = layer * 180
-    const y = ((yIndex === -1 ? 0 : yIndex) * 50) - ((layerOrder.length - 1) * 25)
-
-    // 将 position 加入到节点的原始数据副本中（不直接修改原对象）
-    const vanillaWithPos = { ...n, position: { x, y } }
-
-    elements.push({ data: { id: String(n.id) }, position: { x, y }, scratch: { vanillaData: vanillaWithPos }, ...DEFAULT_OPTIONS, selectable: false })
-  })
-
   // 按照区间计算边（根据规范 59-63）
   // 建立一个点的 xy 表，key 为 x（层数），value 为 y[]（该层上的节点id数组，有序）
   const layerNodesMap: Record<number, string[]> = {}
@@ -87,6 +76,53 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
   for (let layer = 0; layer <= maxLayer; layer++) {
     layerNodesMap[layer] = nodeYAxisOrderMap[layer] || []
   }
+
+  // 记录所有跨区间边
+  const crossNodeEdges = new Set<string>()
+
+  for (const n of nodes) {
+    for (const nextNode of n.nextNodes) {
+      crossNodeEdges.add(`${String(n.id)}-${String(nextNode)}`)
+    }
+  }
+
+  // 处理跨区间边
+  const startNodeKeyMap = new Map<string, string[]>()
+  for (const n of crossNodeEdges) {
+    const [startNode, endNode] = n.split('-')
+    if (!startNodeKeyMap.has(startNode)) {
+      startNodeKeyMap.set(startNode, [])
+    }
+    startNodeKeyMap.get(startNode)?.push(endNode)
+  }
+
+  for (const [startNode, endNodes] of startNodeKeyMap) {
+    generateVirtualNodesForEdges(nodeLayerMap, nodeYAxisOrderMap, layerNodesMap, nodeMap, startNode, endNodes)
+  }
+
+    // 节点位置计算
+    Object.values(nodeMap).forEach((n) => {
+      const id = String(n.id)
+      const layer = nodeLayerMap[id] ?? 0
+      const layerOrder = nodeYAxisOrderMap[layer] ?? []
+      const yIndex = layerOrder.indexOf(id)
+      const x = layer * X_LAYER_WIDTH
+      const y = ((yIndex === -1 ? 0 : yIndex) * Y_NODE_HEIGHT) - ((layerOrder.length - 1) * Y_NODE_HALF_HEIGHT)
+  
+      // 将 position 加入到节点的原始数据副本中（不直接修改原对象）
+      const vanillaWithPos = { ...n, position: { x, y } }
+  
+      elements.push({
+        data: {
+          id: String(n.id),
+          type: 'type' in n ? (n as ProcessVirtualNodeType).type : undefined,
+        },
+        position: { x, y },
+        scratch: { vanillaData: vanillaWithPos },
+        ...DEFAULT_OPTIONS,
+        selectable: false,
+      })
+    })
 
   // 遍历每一个区间（相邻两层之间）
   for (let layer = 0; layer < maxLayer; layer++) {
@@ -144,6 +180,8 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
 
       // 为每条连接创建边
       connectedRightNodes.forEach((rightNodeId) => {
+        // 移除跨区间边
+        crossNodeEdges.delete(`${String(leftNodeId)}-${String(rightNodeId)}`)
         // 计算右侧节点在右侧层中的 y 索引
         const rightIndex = rightLayerNodes.findIndex(node => node === rightNodeId)
         if (rightIndex === -1) return
@@ -162,9 +200,6 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
         // 预计算曲线样式（上限 16）
         const curvatureStyle = getPrecomputedCurvatureStyle(leftTotal, leftIndex, rightTotal, rightIndex)
 
-        console.log(leftNodeId, rightNodeId, leftIndex, rightIndex, leftTotal, rightTotal, curvatureStyle);
-        
-
         // 在边的 data 中存储预计算的样式值
         elements.push({
           data: {
@@ -181,6 +216,148 @@ export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[])
   }
 
   return elements
+}
+
+function generateVirtualNodesForEdges(
+  nodeLayerMap: Record<string, number>,
+  nodeYAxisOrderMap: Record<number, string[]>,
+  layerNodesMap: Record<number, string[]>,
+  nodeMap: Record<string, ProcessNodeType | ProcessVirtualNodeType>,
+  startNode: string,
+  endNodes: string[],
+) {
+  const endNodesAverageY = endNodes.reduce((prev, current) => {
+    const layer = nodeLayerMap[current] ?? 0
+    const layerOrder = nodeYAxisOrderMap[layer] ?? []
+    const yIndex = layerOrder.indexOf(current)
+    const y = ((yIndex === -1 ? 0 : yIndex) * Y_NODE_HEIGHT) - ((layerOrder.length - 1) * Y_NODE_HALF_HEIGHT)
+    return y + prev
+  }, 0) / endNodes.length
+
+  const startNodeY = (() => {
+    const layer = nodeLayerMap[startNode] ?? 0
+    const layerOrder = nodeYAxisOrderMap[layer] ?? []
+    const yIndex = layerOrder.indexOf(startNode)
+    const y = ((new Array(layerOrder.length).fill(0).map((_, i) => (Math.ceil(layerOrder.length / 2) - 1 - (layerOrder.length % 2 ? 0 : 0.5) - i) * Y_NODE_HEIGHT))[yIndex])
+    console.log((new Array(layerOrder.length).fill(0).map((_, i) => (Math.ceil(layerOrder.length / 2) - 1 - (layerOrder.length % 2 ? 0 : 0.5) - i) * Y_NODE_HEIGHT)));
+    
+    return y
+  })()
+
+  const direction = startNodeY <= endNodesAverageY ? 'down' : 'up'
+
+  console.log(direction, startNode, endNodes, startNode, startNodeY, endNodesAverageY);
+  
+
+  // key 为层数，value 为连线时经过该层的终点id
+  // 列出所有需要添加的虚拟节点
+  const virtualNodesMap: Record<number, string[]> = {}
+  endNodes.forEach((v) => {
+    const start = nodeLayerMap[startNode]
+    const end = nodeLayerMap[v]
+    for (let i = start + 1; i < end; i++) {
+      const currentLayerCrossEdgeWay = virtualNodesMap[i] || []
+      currentLayerCrossEdgeWay.push(v)
+      virtualNodesMap[i] = currentLayerCrossEdgeWay
+    }
+  })
+
+  // 此处的流程为
+  // todo!: 根据虚拟节点清单找出所有已有节点，如果还不存在则添加，并将其梳理为一个数组，最后将所有节点连接起来
+
+  const layerToVirtualNodeId: Record<number, string> = {}
+  Object.entries(virtualNodesMap).forEach(([layer, nodes]) => {
+    const virtualNodeIdPrefix = `virtual_node-${layer}-${direction}-${nodes.join('$')}`
+    const layerNum = Number(layer)
+    const layerNodes = layerNodesMap[layerNum] || []
+    let existingId = layerNodes.find(node => node.startsWith(virtualNodeIdPrefix))
+
+    if (!existingId) {
+      existingId = `${virtualNodeIdPrefix}-${Math.random().toString(36).substring(2, 15)}`
+      layerNodesMap[layerNum] = direction === 'down' ? [...layerNodes, existingId] : [existingId, ...layerNodes]
+      nodeLayerMap[existingId] = layerNum
+      if (!nodeYAxisOrderMap[layerNum]) nodeYAxisOrderMap[layerNum] = []
+      if (direction === 'down') nodeYAxisOrderMap[layerNum].push(existingId)
+      else nodeYAxisOrderMap[layerNum].unshift(existingId)
+      nodeMap[existingId] = {
+        type: 'virtual_node',
+        id: existingId,
+        prevNodes: [],
+        nextNodes: [],
+      }
+    }
+    layerToVirtualNodeId[layerNum] = existingId
+  })
+
+  // 整理排序并连接
+  const sortedLayers = Object.keys(layerToVirtualNodeId).map(Number).sort((a, b) => a - b)
+  if (sortedLayers.length > 0) {
+    // 1. 连接起点到第一个虚拟节点
+    const firstVirtualId = layerToVirtualNodeId[sortedLayers[0]]
+    if (nodeMap[startNode] && nodeMap[firstVirtualId]) {
+      if (!nodeMap[startNode].nextNodes.map(String).includes(firstVirtualId)) {
+        nodeMap[startNode].nextNodes.push(firstVirtualId)
+      }
+      if (!nodeMap[firstVirtualId].prevNodes.map(String).includes(startNode)) {
+        nodeMap[firstVirtualId].prevNodes.push(startNode)
+      }
+    }
+
+    // 2. 连接相邻层级的虚拟节点
+    for (let i = 0; i < sortedLayers.length - 1; i++) {
+      const currentId = layerToVirtualNodeId[sortedLayers[i]]
+      const nextId = layerToVirtualNodeId[sortedLayers[i + 1]]
+      if (sortedLayers[i + 1] === sortedLayers[i] + 1) {
+        if (nodeMap[currentId] && nodeMap[nextId]) {
+          if (!nodeMap[currentId].nextNodes.map(String).includes(nextId)) {
+            nodeMap[currentId].nextNodes.push(nextId)
+          }
+          if (!nodeMap[nextId].prevNodes.map(String).includes(currentId)) {
+            nodeMap[nextId].prevNodes.push(currentId)
+          }
+        }
+      }
+    }
+
+    // 3. 将虚拟节点连接到对应的终点节点
+    sortedLayers.forEach(layerNum => {
+      const vId = layerToVirtualNodeId[layerNum]
+      const vNode = nodeMap[vId]
+      if (!vNode) return
+
+      virtualNodesMap[layerNum].forEach(endId => {
+        if (nodeLayerMap[endId] === layerNum + 1) {
+          const endNode = nodeMap[endId]
+          if (endNode) {
+            if (!vNode.nextNodes.map(String).includes(endId)) {
+              vNode.nextNodes.push(endId)
+            }
+            if (!endNode.prevNodes.map(String).includes(vId)) {
+              endNode.prevNodes.push(vId)
+            }
+          }
+        }
+      })
+    })
+
+    // 4. 清理原始的跨层直接连接
+    const startNodeObj = nodeMap[startNode]
+    if (startNodeObj) {
+      startNodeObj.nextNodes = startNodeObj.nextNodes.filter(n => {
+        const id = String(typeof n === 'object' ? n.id : n)
+        return !(endNodes.includes(id) && nodeLayerMap[id] > nodeLayerMap[startNode] + 1)
+      })
+    }
+    endNodes.forEach(endId => {
+      const endNode = nodeMap[endId]
+      if (endNode && nodeLayerMap[endId] > nodeLayerMap[startNode] + 1) {
+        endNode.prevNodes = endNode.prevNodes.filter(n => {
+          const id = String(typeof n === 'object' ? n.id : n)
+          return id !== startNode
+        })
+      }
+    })
+  }
 }
 
 
@@ -300,23 +477,23 @@ function curveCaleWithAlign(leftTotal: number, leftIndex: number, rightTotal: nu
   switch (caseOfHeight) {
     case -1:
       return {
-        'control-point-distances': [17,-17],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [20,-20],
+        'control-point-weights': [0.3,0.7]
       }
     case 1:
       return {
-        'control-point-distances': [-17,17],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [-20,20],
+        'control-point-weights': [0.3,0.7]
       }
     case -2:
       return {
-        'control-point-distances': [34,-34],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [38,-38],
+        'control-point-weights': [0.25,0.75]
       }
     case 2:
       return {
-        'control-point-distances': [-34,34],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [-38,38],
+        'control-point-weights': [0.25,0.75]
       }
     case -3:
       return {

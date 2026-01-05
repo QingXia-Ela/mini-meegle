@@ -25,6 +25,15 @@ function ProcessView({ nodes }: ProcessViewProps) {
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
   }
 
+  const buildVirtualNodeLine = () => {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="320" height="2" viewBox="0 0 320 2">
+        <line x1="0" y1="1" x2="320" y2="1" stroke="#888" stroke-width="2" />
+      </svg>
+    `;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+
   // 初始化 cytoscape 实例（仅挂载时）
   useEffect(() => {
     if (!containerRef.current) return
@@ -44,7 +53,7 @@ function ProcessView({ nodes }: ProcessViewProps) {
       pan,
       style: [
         {
-          selector: 'node',
+          selector: 'node[type != "virtual_node"]',
           style: {
             'shape': 'round-rectangle',
             'width': (ele: NodeSingular) => {
@@ -72,6 +81,21 @@ function ProcessView({ nodes }: ProcessViewProps) {
             },
             'border-width': 1,
             'border-color': 'gray',
+          }
+        },
+        {
+          selector: 'node[type = "virtual_node"]',
+          style: {
+            'width': 88,
+            'height': 1,
+            'padding': '16px',
+            'background-color': 'rgba(255,255,255,0)',
+            'label': '',
+            'background-image': buildVirtualNodeLine(),
+            'background-repeat': 'no-repeat',
+            // 'background-position-x': '-32px',
+            'background-width': '100%',
+            'background-height': '1px',
           }
         },
         {
@@ -113,6 +137,8 @@ function ProcessView({ nodes }: ProcessViewProps) {
         },
       ]
     })
+
+    cytoRef.current.elements('node[type = "virtual_node"]').forEach(console.log)
 
     return () => {
       if (cytoRef.current) {
