@@ -30,6 +30,12 @@ const routes: RouteObject[] = [
           {
             path: ':spaceId/settings',
             Component: SpaceSettingsPage,
+            children: [
+              {
+                path: ':tab',
+                Component: SpaceSettingsPage,
+              },
+            ]
           },
           {
             path: ':spaceId/:workItemId/:taskId/detail',

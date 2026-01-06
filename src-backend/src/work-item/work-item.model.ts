@@ -36,6 +36,12 @@ export class WorkItem extends Model {
   @Column({ type: DataType.STRING, allowNull: true })
   icon?: string;
 
+  @Column({ type: DataType.STRING, allowNull: true })
+  color?: string;
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  description?: string;
+
   @BelongsTo(() => Space)
   declare space: Space;
 }

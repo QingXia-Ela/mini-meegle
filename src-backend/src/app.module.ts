@@ -6,6 +6,7 @@ import 'dotenv/config';
 import { ExampleUserModule } from './example-user/example-user.module';
 import { AuthModule } from './auth/auth.module';
 import { SpaceModule } from './space/space.module';
+import { SpaceUserModule } from './space-user/space-user.module';
 import { WorkItemModule } from './work-item/work-item.module';
 import { TaskModule } from './task/task.module';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
@@ -57,6 +58,7 @@ const {
     ExampleUserModule,
     AuthModule,
     SpaceModule,
+    SpaceUserModule,
     WorkItemModule,
     TaskModule,
   ],

@@ -4,9 +4,11 @@ import {
   Model,
   DataType,
   ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
-import { Space } from './space.model';
+import { Space } from '../space/space.model';
 import { User } from '../user/user.model';
+import { SpacePermission } from './space-user-permission.enum';
 
 @Table({
   tableName: 'space_user',
@@ -17,6 +19,9 @@ export class SpaceUser extends Model {
   @Column({ type: DataType.INTEGER, allowNull: false, primaryKey: true })
   declare uid: number;
 
+  @BelongsTo(() => User)
+  user: User;
+
   @ForeignKey(() => Space)
   @Column({
     type: DataType.STRING(10),
@@ -24,4 +29,14 @@ export class SpaceUser extends Model {
     primaryKey: true,
   })
   declare sid: string;
+
+  @BelongsTo(() => Space)
+  space: Space;
+
+  @Column({
+    type: DataType.ENUM(...Object.values(SpacePermission)),
+    allowNull: false,
+    defaultValue: SpacePermission.MEMBER,
+  })
+  declare space_permission: SpacePermission;
 }

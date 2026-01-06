@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { WorkItem } from './work-item.model';
 import { WorkItemSpace } from './work-item-space.model';
@@ -14,6 +18,12 @@ export class WorkItemService {
   ) {}
 
   async create(dto: CreateWorkItemDto): Promise<WorkItem> {
+    if (dto.id) {
+      const existing = await this.workItemModel.findByPk(dto.id);
+      if (existing) {
+        throw new ConflictException('Work item ID already exists');
+      }
+    }
     const workItem = await this.workItemModel.create(dto as any);
     // 添加到工作项-空间关系表
     await this.workItemSpaceModel.create({

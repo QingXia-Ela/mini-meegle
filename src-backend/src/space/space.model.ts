@@ -7,7 +7,7 @@ import {
   BeforeCreate,
 } from 'sequelize-typescript';
 import { User } from '../user/user.model';
-import { SpaceUser } from './space-user.model';
+import { SpaceUser } from '../space-user/space-user.model';
 import { generateUniqueId } from '../utils/id-generator';
 
 @Table({
@@ -31,7 +31,7 @@ export class Space extends Model {
     }
   }
 
-  @Column({ type: DataType.TEXT, allowNull: true })
+  @Column({ type: DataType.TEXT('long'), allowNull: true })
   icon: string;
 
   @Column({ type: DataType.TEXT, allowNull: false })

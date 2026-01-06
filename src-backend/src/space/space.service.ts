@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Space } from './space.model';
-import { SpaceUser } from './space-user.model';
+import { SpaceUser } from '../space-user/space-user.model';
 import { CreateSpaceDto } from './dto/create-space.dto';
 import { UpdateSpaceDto } from './dto/update-space.dto';
 import { generateUniqueId } from '../utils/id-generator';
+import { SpacePermission } from '../space-user/space-user-permission.enum';
 
 @Injectable()
 export class SpaceService {
@@ -23,10 +24,11 @@ export class SpaceService {
       id,
     } as any);
 
-    // 将创建者添加到空间-用户关系表
+    // 将创建者添加到空间-用户关系表，并设为管理员
     await this.spaceUserModel.create({
       uid: userId,
       sid: space.id,
+      space_permission: SpacePermission.MANAGER,
     });
     return space;
   }
