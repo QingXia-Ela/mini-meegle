@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { SpaceModule } from './space/space.module';
 import { SpaceUserModule } from './space-user/space-user.module';
 import { WorkItemModule } from './work-item/work-item.module';
+import { WorkItemRoleModule } from './work-item-role/work-item-role.module';
 import { TaskModule } from './task/task.module';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -60,6 +61,7 @@ const {
     SpaceModule,
     SpaceUserModule,
     WorkItemModule,
+    WorkItemRoleModule,
     TaskModule,
   ],
   controllers: [AppController],

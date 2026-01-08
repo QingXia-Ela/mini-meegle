@@ -220,46 +220,6 @@ const WorkItemSettings = () => {
             />
           </Form.Item>
 
-          {/* <Form.Item
-            label={
-              <Space size={4}>
-                <span className="font-medium">流程模式</span>
-                <Tooltip title="流程模式决定了工作项的状态流转方式">
-                  <QuestionCircleOutlined className="text-[#bfbfbf]" />
-                </Tooltip>
-              </Space>
-            }
-            name="mode"
-            required
-          >
-            <Radio.Group className="w-full grid grid-cols-2 gap-4">
-              <div 
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${form.getFieldValue('mode') === 'node' ? 'border-blue-500 bg-blue-50' : 'border-[#f0f0f0] hover:border-gray-300'}`}
-                onClick={() => form.setFieldsValue({ mode: 'node' })}
-              >
-                <div className="flex items-center mb-2">
-                  <Radio value="node" />
-                  <span className="font-medium ml-2">节点模式(流程图)</span>
-                </div>
-                <div className="text-xs text-[#8c8c8c] ml-6 leading-relaxed">
-                  适用于复杂流程协作，将事情分组，并强化前后的依赖关系
-                </div>
-              </div>
-              <div 
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${form.getFieldValue('mode') === 'status' ? 'border-blue-500 bg-blue-50' : 'border-[#f0f0f0] hover:border-gray-300'}`}
-                onClick={() => form.setFieldsValue({ mode: 'status' })}
-              >
-                <div className="flex items-center mb-2">
-                  <Radio value="status" />
-                  <span className="font-medium ml-2">状态模式</span>
-                </div>
-                <div className="text-xs text-[#8c8c8c] ml-6 leading-relaxed">
-                  以较粗的粒度标识事务的进度，拆解粒度较小，没有复杂的协作
-                </div>
-              </div>
-            </Radio.Group>
-          </Form.Item> */}
-
           <Form.Item
             label={
               <Space size={4}>

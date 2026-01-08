@@ -4,22 +4,22 @@ import {
   ExclamationCircleFilled,
   RocketFilled,
   UserOutlined,
-  QuestionCircleOutlined,
   CheckOutlined,
   CloseOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import {
   Button,
-  Space,
   Form,
   Input,
-  Tooltip,
   message,
   Popconfirm,
 } from 'antd';
 import { useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { WORK_ITEM_ICONS, WORK_ITEM_COLORS } from '../constants/icons';
+import RoleManagement from './RoleManagement';
+import FieldManagement from './FieldManagement';
 
 interface WorkItemDetailSettingProps {
   workItem?: any;
@@ -35,7 +35,19 @@ const WorkItemDetailSetting = ({
   onDelete,
 }: WorkItemDetailSettingProps) => {
   const [form] = Form.useForm();
-  const [activeTab, setActiveTab] = useState('info');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const activeTab = useMemo(() => {
+    return new URLSearchParams(location.search).get('menuTab') || 'info';
+  }, [location.search]);
+
+  const setActiveTab = (key: string) => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('menuTab', key);
+    navigate({ search: searchParams.toString() }, { replace: true });
+  };
+
   const [selectedColor, setSelectedColor] = useState(
     workItem?.color || WORK_ITEM_COLORS[0]
   );
@@ -131,8 +143,15 @@ const WorkItemDetailSetting = ({
     }
   };
 
+  const handleClose = () => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('menuTab');
+    navigate({ search: searchParams.toString() }, { replace: true });
+    onClose?.();
+  };
+
   return (
-    <div className="fixed inset-0 bg-white z-[1001] flex flex-col">
+    <div className="fixed inset-0 bg-white z-[100] flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between px-5 h-14 border-b border-[#f0f0f0]">
         <div className="flex items-center">
@@ -151,11 +170,10 @@ const WorkItemDetailSetting = ({
           {tabs.map((tab) => (
             <div
               key={tab.key}
-              className={`px-4 h-full flex items-center cursor-pointer transition-all border-b-2 relative top-[1px] ${
-                activeTab === tab.key
+              className={`px-4 h-full flex items-center cursor-pointer transition-all border-b-2 relative top-[1px] ${activeTab === tab.key
                   ? 'text-blue-600 border-blue-600 font-medium'
                   : 'text-[#595959] border-transparent hover:text-blue-600'
-              }`}
+                }`}
               onClick={() => setActiveTab(tab.key)}
             >
               {tab.label}
@@ -165,16 +183,16 @@ const WorkItemDetailSetting = ({
 
         <div
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 cursor-pointer text-[#8c8c8c]"
-          onClick={onClose}
+          onClick={handleClose}
         >
           <CloseOutlined style={{ fontSize: '16px' }} />
         </div>
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto bg-[#fafafa] py-8 flex justify-center">
-        <div className="w-full max-w-[1000px] px-8">
-          {activeTab === 'info' && (
+      <div className="flex-1 overflow-y-auto bg-[#fafafa] flex justify-center">
+        {activeTab === 'info' && (
+          <div className="w-full max-w-[1000px] px-8">
             <div className="bg-white rounded-lg p-8 border border-[#f0f0f0] mb-8">
               <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center">
@@ -183,9 +201,9 @@ const WorkItemDetailSetting = ({
                     基础信息配置
                   </span>
                 </div>
-                <Button 
-                  type="primary" 
-                  ghost 
+                <Button
+                  type="primary"
+                  ghost
                   onClick={handleSave}
                   disabled={!hasChanged}
                 >
@@ -214,62 +232,11 @@ const WorkItemDetailSetting = ({
                   />
                 </Form.Item>
 
-                {/* <Form.Item
-                  label={
-                    <Space size={4}>
-                      <span className="font-medium">流程模式</span>
-                      <Tooltip title="流程模式决定了工作项的状态流转方式">
-                        <QuestionCircleOutlined className="text-[#bfbfbf]" />
-                      </Tooltip>
-                    </Space>
-                  }
-                  name="mode"
-                  required
-                >
-                  <Radio.Group className="w-full grid grid-cols-2 gap-4">
-                    <div
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        form.getFieldValue('mode') === 'node'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-[#f0f0f0] hover:border-gray-300'
-                      }`}
-                      onClick={() => form.setFieldsValue({ mode: 'node' })}
-                    >
-                      <div className="flex items-center mb-2">
-                        <Radio value="node" />
-                        <span className="font-medium ml-2">节点模式(流程图)</span>
-                      </div>
-                      <div className="text-xs text-[#8c8c8c] ml-6 leading-relaxed">
-                        适用于复杂流程协作，将事情分组，并强化前后的依赖关系
-                      </div>
-                    </div>
-                    <div
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        form.getFieldValue('mode') === 'status'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-[#f0f0f0] hover:border-gray-300'
-                      }`}
-                      onClick={() => form.setFieldsValue({ mode: 'status' })}
-                    >
-                      <div className="flex items-center mb-2">
-                        <Radio value="status" />
-                        <span className="font-medium ml-2">状态模式</span>
-                      </div>
-                      <div className="text-xs text-[#8c8c8c] ml-6 leading-relaxed">
-                        以较粗的粒度标识事务的进度，拆解粒度较小，没有复杂的协作
-                      </div>
-                    </div>
-                  </Radio.Group>
-                </Form.Item> */}
-
                 <Form.Item
                   label={
-                    <Space size={4}>
+                    <div className="flex items-center gap-1">
                       <span className="font-medium">系统标识</span>
-                      <Tooltip title="系统内部使用的唯一标识，不可修改">
-                        <QuestionCircleOutlined className="text-[#bfbfbf]" />
-                      </Tooltip>
-                    </Space>
+                    </div>
                   }
                   name="identifier"
                 >
@@ -297,11 +264,10 @@ const WorkItemDetailSetting = ({
                       <div
                         key={color}
                         onClick={() => setSelectedColor(color)}
-                        className={`w-8 h-8 rounded-lg cursor-pointer flex items-center justify-center transition-all ${
-                          selectedColor === color
+                        className={`w-8 h-8 rounded-lg cursor-pointer flex items-center justify-center transition-all ${selectedColor === color
                             ? 'ring-2 ring-offset-2 ring-blue-500'
                             : 'hover:opacity-80'
-                        }`}
+                          }`}
                         style={{ backgroundColor: color }}
                       >
                         {selectedColor === color && (
@@ -315,11 +281,10 @@ const WorkItemDetailSetting = ({
                       <div
                         key={item.key}
                         onClick={() => setSelectedIcon(item.key)}
-                        className={`w-8 h-8 rounded flex items-center justify-center cursor-pointer transition-all ${
-                          selectedIcon === item.key
+                        className={`w-8 h-8 rounded flex items-center justify-center cursor-pointer transition-all ${selectedIcon === item.key
                             ? 'bg-blue-500 text-white rounded-lg shadow-sm'
                             : 'text-[#595959] hover:bg-gray-100'
-                        }`}
+                          }`}
                       >
                         {item.icon}
                       </div>
@@ -344,27 +309,16 @@ const WorkItemDetailSetting = ({
                 </Popconfirm>
               </div>
             </div>
-          )}
-          {activeTab !== 'info' && (
-            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-lg border border-[#f0f0f0]">
-              <div className="text-gray-400">建设中...</div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        {activeTab === 'role' && <RoleManagement workItemId={workItem?.id} />}
+        {activeTab === 'field' && <FieldManagement />}
+        {activeTab !== 'info' && activeTab !== 'role' && activeTab !== 'field' && (
+          <div className="flex flex-col items-center justify-center bg-white rounded-lg border border-[#f0f0f0]">
+            <div className="text-gray-400">建设中...</div>
+          </div>
+        )}
       </div>
-
-      {/* Footer / Help button */}
-      {/* <div className="fixed bottom-6 right-6">
-        <Button
-          type="primary"
-          shape="round"
-          size="large"
-          icon={<RocketFilled />}
-          className="bg-blue-600 shadow-lg flex items-center"
-        >
-          帮助&升级
-        </Button>
-      </div> */}
     </div>
   );
 };

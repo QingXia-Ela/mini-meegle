@@ -1,18 +1,4 @@
 import request from '@/api/request';
-import type { UpdateSpaceDto } from '@backend/types';
-
-export function apiGetSpace(id: string) {
-  return request<any>(`/spaces/${id}`, {
-    method: 'GET',
-  });
-}
-
-export function apiUpdateSpace(id: string, data: UpdateSpaceDto) {
-  return request<any>(`/spaces/${id}`, {
-    method: 'PUT',
-    body: data,
-  });
-}
 
 export function apiGetWorkItemsBySpaceId(spaceId: string) {
   return request<any[]>(`/workItems/space/${spaceId}`, {
@@ -43,6 +29,33 @@ export function apiUpdateWorkItem(id: string, data: any) {
 
 export function apiDeleteWorkItem(id: string) {
   return request<any>(`/workItems/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Role APIs
+export function apiGetWorkItemRoles(workItemId: string) {
+  return request<any[]>(`/workItems/${workItemId}/roles`, {
+    method: 'GET',
+  });
+}
+
+export function apiCreateWorkItemRole(workItemId: string, data: any) {
+  return request<any>(`/workItems/${workItemId}/roles`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export function apiUpdateWorkItemRole(roleId: string, data: any) {
+  return request<any>(`/workItems/roles/${roleId}`, {
+    method: 'PUT',
+    body: data,
+  });
+}
+
+export function apiDeleteWorkItemRole(roleId: string) {
+  return request<any>(`/workItems/roles/${roleId}`, {
     method: 'DELETE',
   });
 }

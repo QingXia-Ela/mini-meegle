@@ -24,3 +24,10 @@ export function apiGetSpaceWorkItems(spaceId: string) {
     method: 'GET',
   });
 }
+
+export function apiJoinSpace(spaceId: string) {
+  return request('/spaces/join', {
+    method: 'POST',
+    body: { spaceId },
+  });
+}

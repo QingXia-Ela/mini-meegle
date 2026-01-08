@@ -63,4 +63,26 @@ export class SpaceService {
       where: { id: spaceIds },
     });
   }
+
+  async join(spaceId: string, userId: number): Promise<void> {
+    // 检查空间是否存在
+    const space = await this.findOne(spaceId);
+
+    // 检查用户是否已经在空间中
+    const existingUser = await this.spaceUserModel.findOne({
+      where: { sid: spaceId, uid: userId },
+    });
+
+    if (existingUser) {
+      // 用户已经在空间中，不需要重复加入
+      return;
+    }
+
+    // 将用户添加到空间中，默认权限为member
+    await this.spaceUserModel.create({
+      uid: userId,
+      sid: spaceId,
+      space_permission: SpacePermission.MEMBER,
+    });
+  }
 }

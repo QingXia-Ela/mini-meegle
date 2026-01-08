@@ -4,6 +4,8 @@ import { SpaceUser } from './space-user.model';
 import { User } from '../user/user.model';
 import { QuerySpaceUserDto } from './dto/query-space-user.dto';
 
+import { SpacePermission } from './space-user-permission.enum';
+
 @Injectable()
 export class SpaceUserService {
   constructor(
@@ -39,6 +41,26 @@ export class SpaceUserService {
       items: rows,
       total: count,
     };
+  }
+
+  async addSpaceUsers(sid: string, uids: number[], permission: SpacePermission = SpacePermission.MEMBER) {
+    const records = uids.map((uid) => ({
+      sid,
+      uid,
+      space_permission: permission,
+    }));
+
+    return this.spaceUserModel.bulkCreate(records, {
+      ignoreDuplicates: true,
+    });
+  }
+
+  async findAllSpaceUserIds(sid: string): Promise<number[]> {
+    const users = await this.spaceUserModel.findAll({
+      where: { sid },
+      attributes: ['uid'],
+    });
+    return users.map((u) => u.uid);
   }
 }
 

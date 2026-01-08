@@ -1,4 +1,4 @@
-import { Form, Input, message, Upload } from 'antd';
+import { Form, Input, message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router';
 import { apiGetSpace, apiUpdateSpace } from '../api';

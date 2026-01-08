@@ -6,6 +6,7 @@ import {
   Param,
   Put,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -23,6 +24,15 @@ export class UserController {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  @Get('search')
+  search(
+    @Query('keyword') keyword?: string,
+    @Query('offset') offset?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.service.findAndCount({ keyword, offset, limit });
   }
 
   @Get(':id')

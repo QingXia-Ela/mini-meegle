@@ -40,6 +40,15 @@ export class SpaceController {
     return this.service.findByUserId(userId);
   }
 
+  @Post('join')
+  join(@Body() dto: { spaceId: string }, @Request() req: any) {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('User not found');
+    }
+    return this.service.join(dto.spaceId, userId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

@@ -39,4 +39,10 @@ export class SpaceUser extends Model {
     defaultValue: SpacePermission.MEMBER,
   })
   declare space_permission: SpacePermission;
+
+  @Column(DataType.VIRTUAL)
+  get display_permission(): string {
+    const p = this.getDataValue('space_permission');
+    return p === SpacePermission.MANAGER ? '管理员' : '普通成员';
+  }
 }

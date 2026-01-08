@@ -6,8 +6,9 @@ import TaskDetailRoutePage from '@/pages/space/[workItemId]/[taskId]/detail';
 import WorkItemPage from '@/pages/space/[workItemId]/index';
 import SpaceWorkItemLayout from '@/pages/space/_layout/SpaceWorkItemLayout';
 import SpaceOverviewPage from '@/pages/space/overview';
-import SpaceSettingsPage from '@/pages/space/settings';
+import { SettingsLayout, IndexPage, WorkItemPage as WorkItemSettingsPage, PermissionPage } from '@/pages/space/settings';
 import TablePage from '@/pages/table';
+import { Navigate } from 'react-router';
 import type { RouteObject } from 'react-router';
 
 const routes: RouteObject[] = [
@@ -29,11 +30,19 @@ const routes: RouteObject[] = [
           },
           {
             path: ':spaceId/settings',
-            Component: SpaceSettingsPage,
+            Component: SettingsLayout,
             children: [
               {
-                path: ':tab',
-                Component: SpaceSettingsPage,
+                path: '',
+                Component: IndexPage,
+              },
+              {
+                path: 'workItem',
+                Component: WorkItemSettingsPage,
+              },
+              {
+                path: 'permission',
+                Component: PermissionPage,
               },
             ]
           },

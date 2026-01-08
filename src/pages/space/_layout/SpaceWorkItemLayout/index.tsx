@@ -1,9 +1,10 @@
-import { HomeFilled, ReloadOutlined, PlusOutlined, SettingFilled } from '@ant-design/icons';
+import { HomeFilled, ReloadOutlined, PlusOutlined, SettingFilled, UserAddOutlined } from '@ant-design/icons';
 import { Select, Spin, Button, Empty } from 'antd';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router';
 import { useState, useEffect } from 'react';
 import SidebarSelectItem from './components/SidebarSelectItem';
 import CreateSpaceModal from './components/CreateSpaceModal';
+import JoinSpaceModal from './components/JoinSpaceModal';
 import useWorkspaceList from './hooks/useWorkspaceList';
 import defaultSpaceIcon from './assets/defaultSpaceIcon.png';
 
@@ -28,6 +29,7 @@ function SpaceWorkItemLayout() {
     params.spaceId,
   );
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
 
   const {
     spaces,
@@ -40,6 +42,18 @@ function SpaceWorkItemLayout() {
     fetchWorkItems,
   } = useWorkspaceList();
 
+  // 当空间列表加载完成且当前没有选中空间时，自动进入第一个空间
+  useEffect(() => {
+    if (!spacesLoading && Array.isArray(spaces) && spaces.length > 0 && !selectedSpaceId) {
+      const firstSpaceId = (spaces[0] as Space).id;
+      setSelectedSpaceId(firstSpaceId);
+      // 如果当前在根路径或者没有 spaceId 的路径，导航到第一个空间
+      if (location.pathname === '/space' || location.pathname === '/space/') {
+        navigate(`/space/${firstSpaceId}/overview`);
+      }
+    }
+  }, [spaces, spacesLoading, selectedSpaceId, navigate, location.pathname]);
+
   // 判断路由是否激活
   const isRouteActive = (path: string) => {
     return location.pathname.startsWith(path);
@@ -50,6 +64,8 @@ function SpaceWorkItemLayout() {
     if (selectedSpaceId) {
       fetchWorkItems(selectedSpaceId);
     }
+    // 加入依赖项会导致无限循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSpaceId]);
 
   // 处理空间选择变化
@@ -80,6 +96,11 @@ function SpaceWorkItemLayout() {
 
   // 处理创建空间成功
   const handleCreateSpaceSuccess = () => {
+    requestSpaces();
+  };
+
+  // 处理加入空间成功
+  const handleJoinSpaceSuccess = () => {
     requestSpaces();
   };
 
@@ -160,7 +181,7 @@ function SpaceWorkItemLayout() {
             dropdownRender={(menu) => (
               <>
                 {menu}
-                <div className="border-t border-gray-200 p-2">
+                <div className="border-t border-gray-200 p-2 space-y-1">
                   <Button
                     type="text"
                     block
@@ -168,6 +189,14 @@ function SpaceWorkItemLayout() {
                     onClick={() => setCreateModalOpen(true)}
                   >
                     新建空间
+                  </Button>
+                  <Button
+                    type="text"
+                    block
+                    icon={<UserAddOutlined />}
+                    onClick={() => setJoinModalOpen(true)}
+                  >
+                    加入空间
                   </Button>
                 </div>
               </>
@@ -180,6 +209,13 @@ function SpaceWorkItemLayout() {
           open={createModalOpen}
           onCancel={() => setCreateModalOpen(false)}
           onSuccess={handleCreateSpaceSuccess}
+        />
+
+        {/* 加入空间弹窗 */}
+        <JoinSpaceModal
+          open={joinModalOpen}
+          onCancel={() => setJoinModalOpen(false)}
+          onSuccess={handleJoinSpaceSuccess}
         />
 
         {/* 工作项列表 */}
