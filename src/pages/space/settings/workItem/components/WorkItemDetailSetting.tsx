@@ -20,6 +20,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { WORK_ITEM_ICONS, WORK_ITEM_COLORS } from '../constants/icons';
 import RoleManagement from './RoleManagement';
 import FieldManagement from './FieldManagement';
+import WorkflowManagement from './WorkflowManagement';
 
 interface WorkItemDetailSettingProps {
   workItem?: any;
@@ -312,8 +313,9 @@ const WorkItemDetailSetting = ({
           </div>
         )}
         {activeTab === 'role' && <RoleManagement workItemId={workItem?.id} />}
-        {activeTab === 'field' && <FieldManagement />}
-        {activeTab !== 'info' && activeTab !== 'role' && activeTab !== 'field' && (
+        {activeTab === 'field' && <FieldManagement workItemId={workItem?.id} />}
+        {activeTab === 'flow' && <WorkflowManagement workItemId={workItem?.id} />}
+        {activeTab !== 'info' && activeTab !== 'role' && activeTab !== 'field' && activeTab !== 'flow' && (
           <div className="flex flex-col items-center justify-center bg-white rounded-lg border border-[#f0f0f0]">
             <div className="text-gray-400">建设中...</div>
           </div>

@@ -4,12 +4,12 @@ import {
   Model,
   DataType,
   ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
 import { WorkItem } from '../work-item/work-item.model';
-import { Task } from './task.model';
 
-@Table({ tableName: 'workItem_task', timestamps: false })
-export class WorkItemTask extends Model {
+@Table({ tableName: 'workflowTypes', timestamps: true })
+export class WorkflowType extends Model {
   @Column({ type: DataType.INTEGER, autoIncrement: true, primaryKey: true })
   declare id: number;
 
@@ -17,7 +17,9 @@ export class WorkItemTask extends Model {
   @Column({ type: DataType.STRING(10), allowNull: false })
   declare wid: string;
 
-  @ForeignKey(() => Task)
-  @Column({ type: DataType.INTEGER, allowNull: false })
-  declare tid: number;
+  @Column({ type: DataType.STRING, allowNull: false })
+  name: string;
+
+  @BelongsTo(() => WorkItem)
+  declare workItem: WorkItem;
 }

@@ -34,7 +34,7 @@
 任务(task)
 - wid(workItem[pk])
 - id[pk]
-- taskType(taskType)
+- workflowType(workflowType)
 - nodeStatusList(nodeStatus[])
 - fieldStatusList(fieldStatus[])
 - comments(comment[])
@@ -45,8 +45,9 @@
 - id[pk]
 - tid[task]
 
-任务类型(taskType)
+流程类型(workflowType)
 - id[pk]
+- wid[workItem]
 - name
 - nodeMap(node[])
 

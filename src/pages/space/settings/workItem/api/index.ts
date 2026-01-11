@@ -60,3 +60,85 @@ export function apiDeleteWorkItemRole(roleId: string) {
   });
 }
 
+// Field APIs
+export interface FieldConfig {
+  options?: Array<{
+    id: string;
+    label: string;
+    color: string;
+  }>;
+  [key: string]: string | number | boolean | object | Array<any> | undefined;
+}
+
+export interface WorkItemField {
+  id: string;
+  wid: string;
+  name: string;
+  type: string;
+  config?: string;
+  jsonConfig?: FieldConfig;
+  systemType: 'system' | 'custom';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function apiGetWorkItemFields(workItemId: string) {
+  return request<WorkItemField[]>(`/workItems/${workItemId}/fields`, {
+    method: 'GET',
+  });
+}
+
+export function apiCreateWorkItemField(workItemId: string, data: Partial<WorkItemField>) {
+  return request<WorkItemField>(`/workItems/${workItemId}/field`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export function apiUpdateWorkItemField(workItemId: string, fieldId: string, data: Partial<WorkItemField>) {
+  return request<WorkItemField>(`/workItems/${workItemId}/field/${fieldId}`, {
+    method: 'PUT',
+    body: data,
+  });
+}
+
+export function apiDeleteWorkItemField(workItemId: string, fieldId: string) {
+  return request<void>(`/workItems/${workItemId}/field/${fieldId}`, {
+    method: 'DELETE',
+  });
+}
+
+// Workflow Type APIs
+export interface WorkflowType {
+  id: number;
+  wid: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function apiGetWorkflowTypes(workItemId: string) {
+  return request<WorkflowType[]>(`/workflow-types/workItem/${workItemId}`, {
+    method: 'GET',
+  });
+}
+
+export function apiCreateWorkflowType(data: { wid: string; name: string }) {
+  return request<WorkflowType>('/workflow-types', {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export function apiUpdateWorkflowType(id: number, data: { name?: string }) {
+  return request<WorkflowType>(`/workflow-types/${id}`, {
+    method: 'PUT',
+    body: data,
+  });
+}
+
+export function apiDeleteWorkflowType(id: number) {
+  return request<void>(`/workflow-types/${id}`, {
+    method: 'DELETE',
+  });
+}

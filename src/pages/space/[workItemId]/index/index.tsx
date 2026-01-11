@@ -1,9 +1,206 @@
-import { EditOutlined, HomeFilled } from '@ant-design/icons';
-import { data, useNavigate, useParams, useRoutes } from 'react-router';
+import { EditOutlined, HomeFilled, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router';
 import WorkItemStatusView from './components/WorkItemStatusView';
-import { Button, Form, Input, Table, Tabs, type InputRef, type TabsProps, type FormInstance, Select, DatePicker } from 'antd';
+import { Button, Form, Input, Table, Tabs, type InputRef, type TabsProps, type FormInstance, Select, DatePicker, Modal, message, InputNumber, Switch } from 'antd';
 import MeegleCardFrame from '@/components/workItem/MeegleCardFrame';
-import { createContext, use, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { get, post } from '@/api/request';
+import MemberSelect from '@/components/MemberSelect';
+import dayjs from 'dayjs';
+import { FieldType, SystemFieldId } from '@/constants/field';
+
+const { TextArea } = Input;
+const { RangePicker } = DatePicker;
+
+interface CreateTaskModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  onSuccess: () => void;
+  workItemId: string;
+}
+
+const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, onSuccess, workItemId }) => {
+  const [form] = Form.useForm();
+  const [fields, setFields] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [workflowTypes, setWorkflowTypes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchFields = useCallback(async () => {
+    try {
+      const data = await get(`/workItems/${workItemId}/fields`);
+      setFields(data || []);
+    } catch (e) {
+      console.error('Failed to fetch fields', e);
+    }
+  }, [workItemId]);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await get('/users');
+      setUsers(data || []);
+    } catch (e) {
+      console.error('Failed to fetch users', e);
+    }
+  }, []);
+
+  const fetchWorkflowTypes = useCallback(async () => {
+    try {
+      const data = await get(`/workflow-types/workItem/${workItemId}`);
+      setWorkflowTypes(data || []);
+    } catch (e) {
+      console.error('Failed to fetch workflow types', e);
+    }
+  }, [workItemId]);
+
+  useEffect(() => {
+    if (visible) {
+      fetchFields();
+      fetchUsers();
+      fetchWorkflowTypes();
+    }
+  }, [visible, fetchFields, fetchUsers, fetchWorkflowTypes]);
+
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields();
+      setLoading(true);
+
+      const workflowType = values[SystemFieldId.WORKFLOW_TYPE];
+      const fieldStatusList = Object.entries(values)
+        .filter(([fieldId]) => fieldId !== SystemFieldId.WORKFLOW_TYPE)
+        .map(([fieldId, value]) => {
+          let finalValue = value;
+          if (dayjs.isDayjs(value)) {
+            finalValue = value.toISOString();
+          } else if (Array.isArray(value) && value.length > 0 && dayjs.isDayjs(value[0])) {
+            finalValue = value.map((v: any) => v.toISOString());
+          }
+          return {
+            fieldId,
+            value: finalValue === undefined ? null : finalValue,
+          };
+        });
+
+      await post('/tasks', {
+        wid: workItemId,
+        workflowType,
+        fieldStatusList,
+      });
+
+      message.success('创建成功');
+      form.resetFields();
+      onSuccess();
+    } catch (e) {
+      console.error('Create task failed', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderFieldInput = (field: any) => {
+    const { type, name, jsonConfig } = field;
+    const placeholder = field.id === SystemFieldId.WORKFLOW_TYPE ? '请选择流程类型' : `请输入${name}`;
+
+    if (field.id === SystemFieldId.WORKFLOW_TYPE) {
+      return (
+        <Select placeholder={placeholder}>
+          {workflowTypes.map((wt: any) => (
+            <Select.Option key={wt.id} value={wt.id}>
+              {wt.name}
+            </Select.Option>
+          ))}
+        </Select>
+      );
+    }
+
+    switch (type) {
+      case FieldType.TEXT:
+        return <Input placeholder={placeholder} />;
+      case FieldType.TEXTAREA:
+        return <TextArea placeholder={placeholder} rows={4} />;
+      case FieldType.NUMBER:
+        return <InputNumber placeholder={placeholder} style={{ width: '100%' }} />;
+      case FieldType.SELECT:
+        return (
+          <Select placeholder={placeholder}>
+            {jsonConfig?.options?.map((opt: any) => (
+              <Select.Option key={opt.id} value={opt.id}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      case FieldType.MULTI_SELECT:
+        return (
+          <Select mode="multiple" placeholder={placeholder}>
+            {jsonConfig?.options?.map((opt: any) => (
+              <Select.Option key={opt.id} value={opt.id}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      case FieldType.DATE:
+        return <DatePicker placeholder={placeholder} style={{ width: '100%' }} />;
+      case FieldType.DATE_RANGE:
+        return <RangePicker style={{ width: '100%' }} />;
+      case FieldType.SWITCH:
+        return <Switch />;
+      case FieldType.MEMBER:
+      case FieldType.MULTI_MEMBER:
+        return (
+          <MemberSelect
+            options={users.map(u => ({ id: u.id.toString(), name: u.name, avatar: u.avatar }))}
+            placeholder={placeholder}
+          />
+        );
+      default:
+        return <Input placeholder={placeholder} />;
+    }
+  };
+
+  // 排序：name, description 优先，然后是自定义字段
+  const sortedFields = [...fields].sort((a, b) => {
+    if (a.id === SystemFieldId.NAME) return -1;
+    if (b.id === SystemFieldId.NAME) return 1;
+    if (a.id === SystemFieldId.DESCRIPTION) return -1;
+    if (b.id === SystemFieldId.DESCRIPTION) return 1;
+    return 0;
+  });
+
+  const displayFields = sortedFields.filter(f => 
+    f.id === SystemFieldId.NAME || 
+    f.id === SystemFieldId.DESCRIPTION || 
+    f.id === SystemFieldId.WORKFLOW_TYPE || 
+    f.systemType === 'custom'
+  );
+
+  return (
+    <Modal
+      title="新建任务"
+      open={visible}
+      onOk={handleOk}
+      onCancel={onCancel}
+      confirmLoading={loading}
+      width={600}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" className="mt-4">
+        {displayFields.map(field => (
+          <Form.Item
+            key={field.id}
+            name={field.id}
+            label={field.name}
+            rules={[{ required: field.isRequire, message: `${field.name}是必填项` }]}
+          >
+            {renderFieldInput(field)}
+          </Form.Item>
+        ))}
+      </Form>
+    </Modal>
+  );
+};
 
 const items: TabsProps['items'] = [
   {
@@ -97,19 +294,6 @@ const defaultColumns = [
 
 const EditableContext = createContext<FormInstance<any> | null>(null);
 
-type DataType = {
-  id: number;
-  name: string;
-  owner: string;
-  priority: string;
-  createdAt: string;
-  createdBy: string;
-  schedule: string;
-  currentNode: string;
-  type: string;
-  description: string;
-};
-
 interface EditableRowProps {
   index: number;
 }
@@ -129,9 +313,9 @@ const EditableRow: React.FC<EditableRowProps> = ({ index: _index, ...props }) =>
 interface EditableCellProps {
   title: React.ReactNode;
   editable: boolean;
-  dataIndex: keyof DataType;
-  record: DataType;
-  handleSave: (record: DataType) => void;
+  dataIndex: string;
+  record: any;
+  handleSave: (record: any) => void;
 }
 
 const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
@@ -205,20 +389,55 @@ const components = {
 };
   
 function WorkItemList() {
-  const [dataSource, setDataSource] = useState<DataType[]>(Array.from({ length: 60 }).map((_, idx) => ({
-    id: idx + 1,
-    name: `待办事项 ${idx + 1}`,
-    owner: `负责人 ${idx + 1}`,
-    priority: ['高', '中', '低'][idx % 3],
-    createdAt: '2024-01-01',
-    createdBy: `创建人 ${idx + 1}`,
-    schedule: '2024-01-10 to 2024-01-20',
-    currentNode: `节点 ${idx + 1}`,
-    type: ['功能', '缺陷', '任务'][idx % 3],
-    description: `这是待办事项 ${idx + 1} 的描述。`,
-  })));
+  const { workItemId, spaceId } = useParams<{ workItemId: string; spaceId: string }>();
+  const [dataSource, setDataSource] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
 
-  const handleSave = (row: DataType) => {
+  const fetchTasks = useCallback(async (current: number, pageSize: number) => {
+    if (!workItemId) return;
+    setLoading(true);
+    try {
+      const offset = (current - 1) * pageSize;
+      const data = await get(`/tasks/workItem/${workItemId}?count=${pageSize}&offset=${offset}`);
+      if (data && data.rows) {
+        // 将 fieldStatusList 展开到任务对象上，方便表格显示
+        const formattedRows = data.rows.map((row: any) => {
+          const taskData = { ...row };
+          if (row.fieldStatusList && Array.isArray(row.fieldStatusList)) {
+            row.fieldStatusList.forEach((fs: any) => {
+              taskData[fs.fieldId] = fs.value;
+            });
+          }
+          return taskData;
+        });
+        setDataSource(formattedRows);
+        setTotal(data.count);
+      }
+    } catch (e) {
+      console.error('Failed to fetch tasks', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [workItemId]);
+
+  useEffect(() => {
+    fetchTasks(pagination.current, pagination.pageSize);
+  }, [fetchTasks, pagination.current, pagination.pageSize]);
+
+  const handleTableChange = (newPagination: any) => {
+    setPagination({
+      current: newPagination.current,
+      pageSize: newPagination.pageSize,
+    });
+  };
+
+  const handleSave = (row: any) => {
+    // TODO: 实现保存逻辑
     const newData = [...dataSource];
     const index = newData.findIndex((item) => row.id === item.id);
     const item = newData[index];
@@ -235,7 +454,7 @@ function WorkItemList() {
     }
     return {
       ...col,
-      onCell: (record: DataType) => ({
+      onCell: (record: any) => ({
         record,
         editable: col.editable,
         dataIndex: col.dataIndex,
@@ -245,26 +464,53 @@ function WorkItemList() {
     };
   });
 
-
-  
-
   return (
     <Table
       className='flex-1'
       rowKey="id"
       dataSource={dataSource}
       columns={columns}
+      loading={loading}
       pagination={{
-        pageSize: 10
+        current: pagination.current,
+        pageSize: pagination.pageSize,
+        total: total,
+        showSizeChanger: true,
       }}
+      onChange={handleTableChange}
       bordered={false}
       components={components}
     />
-  )
+  );
 }
 
 function WorkItemPage() {
   const { spaceId, workItemId } = useParams<{ spaceId: string, workItemId: string }>();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [stats, setStats] = useState({ total: 0, participants: 0, myParticipated: 0 });
+
+  const fetchStats = useCallback(async () => {
+    if (!workItemId) return;
+    try {
+      const data = await get(`/tasks/workItem/${workItemId}/stats`);
+      if (data) {
+        setStats(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch stats', e);
+    }
+  }, [workItemId]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  const handleRefresh = () => {
+    fetchStats();
+    // 可以在这里添加刷新列表的逻辑，目前数据是 Mock 的
+    window.location.reload();
+  };
+
   return (
     <>
       <header className="flex py-3 px-5 w-full bg-white border-b border-[#cacbcd] items-center">
@@ -277,29 +523,37 @@ function WorkItemPage() {
         <WorkItemStatusView items={[
           {
             name: '总数',
-            value: '123'
-          },
-          {
-            name: '已完成',
-            value: 456
+            value: stats.total
           },
           {
             name: '参与人员总数',
-            value: 1
+            value: stats.participants
           },
           {
             name: '我参与的',
-            value: 5
+            value: stats.myParticipated
           }
         ]} />
         <MeegleCardFrame className='flex-1 flex flex-col pt-0'>
           <div className='flex justify-between items-center'>
             <Tabs defaultActiveKey="1" items={items} />;
-            <Button type='primary'>刷新</Button>
+            <div className='flex gap-2'>
+              <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
+              <Button type='primary' icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>新增</Button>
+            </div>
           </div>
           <WorkItemList />
         </MeegleCardFrame>
       </div>
+      <CreateTaskModal
+        visible={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          setIsModalOpen(false);
+          handleRefresh();
+        }}
+        workItemId={workItemId!}
+      />
     </>
 
   );

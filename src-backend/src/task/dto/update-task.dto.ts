@@ -1,5 +1,5 @@
 export class UpdateTaskDto {
   wid?: string;
-  taskType?: number;
+  workflowType?: number;
   timestamp?: Date;
 }
