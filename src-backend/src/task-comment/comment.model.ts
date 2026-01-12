@@ -38,7 +38,11 @@ export class Comment extends Model {
   get additionData(): any {
     const raw = this.getDataValue('additionDataRaw') as string;
     if (!raw) return null;
-    return JSON.parse(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
   set additionData(value: any) {
     this.setDataValue('additionDataRaw', JSON.stringify(value || {}));
