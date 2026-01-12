@@ -12,6 +12,7 @@ import { WorkItemRoleModule } from './work-item-role/work-item-role.module';
 import { WorkItemFieldModule } from './work-item-field/work-item-field.module';
 import { TaskModule } from './task/task.module';
 import { WorkflowTypeModule } from './workflow-type/workflow-type.module';
+import { CommentModule } from './comment/comment.module';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { ResponseInterceptor } from './common/response.interceptor';
@@ -67,6 +68,7 @@ const {
     WorkItemFieldModule,
     TaskModule,
     WorkflowTypeModule,
+    CommentModule,
   ],
   controllers: [AppController],
   providers: [

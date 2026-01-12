@@ -33,7 +33,7 @@ function TaskDetailPage({ spaceId, workItemId, taskId }: TaskDetailPageProps) {
           <div className="h-104 w-full">
             <ProcessView nodes={Object.values(BasicMap)} />
           </div>
-          <ProcessBottomInfo />
+          <ProcessBottomInfo spaceId={spaceId} workItemId={workItemId} taskId={taskId} />
         </div>
       </div>
     </div>

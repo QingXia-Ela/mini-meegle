@@ -1,5 +1,5 @@
 export class CreateTaskDto {
   wid: string;
-  workflowType?: string;
+  workflowType?: number;
   fieldStatusList?: any[];
 }

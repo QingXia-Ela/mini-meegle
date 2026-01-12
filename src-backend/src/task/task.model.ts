@@ -20,7 +20,7 @@ export class Task extends Model {
 
   @ForeignKey(() => WorkflowType)
   @Column({ type: DataType.INTEGER, allowNull: false })
-  workflowType: string;
+  workflowType: number;
 
   // @Column({ type: DataType.TEXT('long'), allowNull: true })
   // nodeStatusList?: string;

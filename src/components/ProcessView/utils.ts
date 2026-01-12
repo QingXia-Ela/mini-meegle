@@ -1,3 +1,4 @@
+import { cloneDeep } from 'lodash-es';
 import type { ProcessNodeType, ProcessVirtualNodeType } from './types';
 import type cytoscape from 'cytoscape';
 
@@ -12,7 +13,9 @@ const X_LAYER_WIDTH = 180
 const Y_NODE_HEIGHT = 50
 const Y_NODE_HALF_HEIGHT = Y_NODE_HEIGHT / 2
 
-export function parseProcessNodesIntoCytoscapeElements(nodes: ProcessNodeType[]): cytoscape.CytoscapeOptions['elements'] {
+export function parseProcessNodesIntoCytoscapeElements(originalNodes: ProcessNodeType[]): cytoscape.CytoscapeOptions['elements'] {
+  // deep clone originalNodes
+  const nodes = cloneDeep(originalNodes)
   // 构造 id -> node 映射（id 统一为字符串）
   const nodeMap: Record<string, ProcessNodeType | ProcessVirtualNodeType> = {}
   nodes.forEach((n) => { nodeMap[String(n.id)] = n })

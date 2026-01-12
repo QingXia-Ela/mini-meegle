@@ -83,12 +83,12 @@
 - fid(field[pk])
 - fieldValue[JSON[field[fieldType]]]
 
-评论(comment)
+任务评论(taskComment)
 - id[pk]
 - tid(task[pk])
 - uid(user[pk])
-- rid?(comment[pk])
+- rid?(taskComment[pk])
 - content
-- timestamp
+- additionData[JSONObject]
 
 收藏(favorite)

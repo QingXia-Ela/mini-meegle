@@ -161,6 +161,8 @@ async function request<T = any>(input: string, init: ModifyRequestInit = {}, opt
 
 export const get = <T = any>(url: string, opts?: RequestOptions) => request<T>(url, { method: 'GET' }, opts);
 export const post = <T = any>(url: string, body?: any, opts?: RequestOptions) => request<T>(url, { method: 'POST', body }, opts);
+export const put = <T = any>(url: string, body?: any, opts?: RequestOptions) => request<T>(url, { method: 'PUT', body }, opts);
+export const del = <T = any>(url: string, opts?: RequestOptions) => request<T>(url, { method: 'DELETE' }, opts);
 
 /*
 Usage examples:

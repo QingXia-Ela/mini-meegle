@@ -153,7 +153,9 @@ function ProcessView({ nodes }: ProcessViewProps) {
     if (!cytoRef.current) return
     const elements = parseProcessNodesIntoCytoscapeElements(nodes)
     if (elements && Array.isArray(elements)) {
-      cytoRef.current.elements().remove()
+      // 移除所有节点并重新设置元素
+      cytoRef.current.elements('node').remove()
+      cytoRef.current.elements('edge').remove()
       cytoRef.current.add(elements as cytoscape.ElementDefinition[])
     }
   }, [nodes])
