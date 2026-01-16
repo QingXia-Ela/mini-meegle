@@ -8,13 +8,30 @@ import { Comment } from './comment.model';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { User } from '../user/user.model';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class CommentService {
-  constructor(@InjectModel(Comment) private commentModel: typeof Comment) {}
+  constructor(
+    @InjectModel(Comment) private commentModel: typeof Comment,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async create(dto: CreateCommentDto, userId: number): Promise<Comment> {
-    return this.commentModel.create({ ...dto, uid: userId } as any);
+    const comment = await this.commentModel.create({
+      ...dto,
+      uid: userId,
+    } as any);
+
+    if (dto.additionData?.mentions?.length > 0) {
+      this.eventEmitter.emit('task_comments.mention', {
+        comment,
+        mentions: dto.additionData.mentions,
+        senderId: userId,
+      });
+    }
+
+    return comment;
   }
 
   async findAllByTask(tid: number): Promise<Comment[]> {

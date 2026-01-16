@@ -1,9 +1,10 @@
-import React, { type HTMLAttributes } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router';
-import { Avatar, Popover, Button, notification } from 'antd';
+import React, { type HTMLAttributes, useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router';
+import { Avatar, Badge, Popover, notification } from 'antd';
 import { HomeFilled, AppstoreFilled, StarFilled, BellFilled, UserAddOutlined } from '@ant-design/icons';
 import MeegleLogo from '@/assets/meegle.svg'
 import { cleanUserInfo } from '@/api/request';
+import { useNoticeBadgeStore } from '@/store/noticeBadge';
 
 const UserPopoverContent: React.FC = () => {
   function logout() {
@@ -56,6 +57,8 @@ const LeftToolSelectButton = ({
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const unreadCount = useNoticeBadgeStore((state) => state.unreadCount);
+  const refreshUnreadCount = useNoticeBadgeStore((state) => state.refreshUnreadCount);
 
   const isActive = (path: string, mode: 'exact' | 'includes' = 'includes') => {
     if (mode === 'exact') {
@@ -63,6 +66,10 @@ export const MainLayout: React.FC = () => {
     }
     return location.pathname.startsWith(path);
   }
+
+  useEffect(() => {
+    refreshUnreadCount();
+  }, [refreshUnreadCount]);
 
   return (
     <div className="flex h-full bg-white">
@@ -93,7 +100,11 @@ export const MainLayout: React.FC = () => {
           onClick={() => navigate('/notifications')}
           content='通知'
           active={isActive('/notifications')}
-          icon={<BellFilled style={{ fontSize: 24, color: isActive('/notifications') ? '#3250eb' : '#cacbcd' }} />}
+          icon={
+            <Badge dot={unreadCount > 0} color="#ff4d4f">
+              <BellFilled style={{ fontSize: 24, color: isActive('/notifications') ? '#3250eb' : '#cacbcd' }} />
+            </Badge>
+          }
         />
         <div className="absolute bottom-4">
           <div className="flex flex-col items-center space-x-4 gap-6">

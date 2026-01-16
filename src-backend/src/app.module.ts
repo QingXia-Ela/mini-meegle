@@ -13,6 +13,8 @@ import { WorkItemFieldModule } from './work-item-field/work-item-field.module';
 import { TaskModule } from './task/task.module';
 import { WorkflowTypeModule } from './workflow-type/workflow-type.module';
 import { CommentModule } from './task-comment/comment.module';
+import { NoticeModule } from './notice/notice.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { ResponseInterceptor } from './common/response.interceptor';
@@ -69,6 +71,8 @@ const {
     TaskModule,
     WorkflowTypeModule,
     CommentModule,
+    NoticeModule,
+    EventEmitterModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [
