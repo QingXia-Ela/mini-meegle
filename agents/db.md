@@ -92,3 +92,6 @@
 - additionData[JSONObject]
 
 收藏(favorite)
+- id[pk]
+- type(string)
+- tid(task[pk])

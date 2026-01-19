@@ -254,6 +254,7 @@ function CommentList({
 }
 
 interface ProcessBottomInfoProps {
+  spaceId: string;
   workItemId: string;
   taskId: string;
 }

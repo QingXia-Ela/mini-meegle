@@ -3,11 +3,15 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Task } from './task.model';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { Favorite } from '../favorites/favorite.model';
+
+const TASK_FAVORITE_TYPE = 'task';
 
 @Injectable()
 export class TaskService {
   constructor(
     @InjectModel(Task) private taskModel: typeof Task,
+    @InjectModel(Favorite) private favoriteModel: typeof Favorite,
   ) {}
 
   async create(dto: CreateTaskDto, userId: number): Promise<Task> {
@@ -70,5 +74,8 @@ export class TaskService {
   async remove(id: number): Promise<void> {
     const t = await this.findOne(id);
     await t.destroy();
+    await this.favoriteModel.destroy({
+      where: { type: TASK_FAVORITE_TYPE, tid: id },
+    });
   }
 }

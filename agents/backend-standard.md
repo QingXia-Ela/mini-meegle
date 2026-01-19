@@ -57,3 +57,4 @@ export class ExampleController {
 - **业务逻辑**: 保持 Controller 简洁，核心逻辑下沉到 Service 层。
 - **关联查询**: 优先使用 Sequelize 的 `include` 配置处理关联，避免多次循环查询。
 - **事务**: 涉及多表写操作时，务必使用 `Sequelize` 事务。
+- **JSON内容存储**: 使用 LONGTEXT 存储，且字段名必须为 `XXXRaw`，在 nest 层则需要将 Raw 反序列化并创建对应的 `XXX` 虚拟列。
