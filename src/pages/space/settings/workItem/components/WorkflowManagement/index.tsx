@@ -2,7 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import type { MenuProps } from 'antd';
 import { Button, Space, Skeleton, Empty, Modal, Form, Input, message, Dropdown } from 'antd';
 import { EllipsisOutlined, PlusOutlined } from '@ant-design/icons';
-import { apiGetWorkflowTypes, apiCreateWorkflowType, apiUpdateWorkflowType, apiDeleteWorkflowType, type WorkflowType } from '../api';
+import { apiGetWorkflowTypes, apiCreateWorkflowType, apiUpdateWorkflowType, apiDeleteWorkflowType, type WorkflowType } from '../../api';
+import WorkflowDetail from './WorkflowDetail';
 
 interface WorkflowManagementProps {
   workItemId?: string;
@@ -13,6 +14,7 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowType | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowType | null>(null);
   const [form] = Form.useForm();
 
   const fetchWorkflows = useCallback(async () => {
@@ -21,17 +23,26 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
       setLoading(true);
       const data = await apiGetWorkflowTypes(workItemId);
       setWorkflows(data);
+      // If a workflow is selected, update its data from the fresh list
+      if (selectedWorkflow) {
+        const updated = data.find(w => w.id === selectedWorkflow.id);
+        if (updated) {
+          setSelectedWorkflow(updated);
+        } else {
+          setSelectedWorkflow(null);
+        }
+      }
     } catch (error: unknown) {
       console.error('Failed to fetch workflows:', error);
       message.error('获取流程列表失败');
     } finally {
       setLoading(false);
     }
-  }, [workItemId]);
+  }, [workItemId, selectedWorkflow?.id]);
 
   useEffect(() => {
     fetchWorkflows();
-  }, [fetchWorkflows]);
+  }, [workItemId]); // Only re-fetch when workItemId changes, otherwise manual refresh is handled by handle functions
 
   const handleCreateOrUpdate = async () => {
     if (!workItemId) return;
@@ -62,12 +73,27 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
       setLoading(true);
       await apiDeleteWorkflowType(id);
       message.success('删除成功');
+      if (selectedWorkflow?.id === id) {
+        setSelectedWorkflow(null);
+      }
       fetchWorkflows();
     } catch (error) {
       console.error('Delete failed:', error);
       message.error('删除失败');
+      throw error;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDetailUpdate = async (id: number, values: { name: string }) => {
+    try {
+      await apiUpdateWorkflowType(id, values);
+      await fetchWorkflows();
+    } catch (error) {
+      console.error('Update failed:', error);
+      message.error('更新失败');
+      throw error;
     }
   };
 
@@ -75,13 +101,41 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
     {
       key: 'edit',
       label: '修改名称',
-      onClick: () => {
+      onClick: (e) => {
+        e.domEvent.stopPropagation();
         setEditingWorkflow(workflow);
         form.setFieldsValue({ name: workflow.name });
         setIsModalOpen(true);
       },
     },
+    {
+      key: 'delete',
+      label: '删除流程',
+      danger: true,
+      onClick: (e) => {
+        e.domEvent.stopPropagation();
+        Modal.confirm({
+          title: '确定要删除该流程吗？',
+          content: '删除后将无法恢复',
+          okText: '确定',
+          okType: 'danger',
+          cancelText: '取消',
+          onOk: () => handleDelete(workflow.id),
+        });
+      },
+    }
   ];
+
+  if (selectedWorkflow) {
+    return (
+      <WorkflowDetail 
+        workflow={selectedWorkflow} 
+        onBack={() => setSelectedWorkflow(null)}
+        onUpdate={handleDetailUpdate}
+        onDelete={handleDelete}
+      />
+    );
+  }
 
   return (
     <div className="w-full h-full bg-[#fcfcfc] p-6 flex flex-col">
@@ -115,7 +169,8 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
           {workflows.map((workflow) => (
             <div
               key={workflow.id}
-              className="bg-white border border-[#f0f0f0] rounded-xl overflow-hidden hover:shadow-md transition-all group flex flex-col"
+              onClick={() => setSelectedWorkflow(workflow)}
+              className="bg-white border border-[#f0f0f0] rounded-xl overflow-hidden hover:shadow-md transition-all group flex flex-col cursor-pointer"
             >
               {/* Workflow Diagram Placeholder */}
               <div className="h-[140px] bg-[#fcfcfc] border-b border-[#f0f0f0] flex items-center justify-center">
@@ -135,6 +190,7 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
                     type="text" 
                     icon={<EllipsisOutlined />} 
                     className="text-[#bfbfbf] hover:text-[#262626]" 
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </Dropdown>
               </div>

@@ -2,7 +2,7 @@ import { CloseOutlined, HomeFilled, StarFilled, StarOutlined } from '@ant-design
 import { Button } from 'antd';
 import { useEffect, useState } from 'react';
 import ProcessView from '../ProcessView';
-import { BasicMap } from '../ProcessView/exampleMap';
+import { BasicMap, TestMap } from '../ProcessView/exampleMap';
 import ProcessBottomInfo from './components/ProcessBottomInfo';
 import { del, get, post } from '@/api/request';
 
@@ -81,7 +81,7 @@ function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPage
         <div className='flex flex-col'>
           {/* <ProcessMemberSelector /> */}
           <div className="h-104 w-full">
-            <ProcessView nodes={Object.values(BasicMap)} />
+            <ProcessView nodes={Object.values(TestMap)} />
           </div>
           <ProcessBottomInfo spaceId={spaceId} workItemId={workItemId} taskId={taskId} />
         </div>

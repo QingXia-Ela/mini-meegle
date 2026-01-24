@@ -29,3 +29,8 @@ export interface ProcessViewTypes {
   maps: Record<string, ProcessNodeType>
   showDutys: string[]
 }
+
+export interface AddNodeInfo {
+  id: ProcessNodeIdType
+  name?: string
+}

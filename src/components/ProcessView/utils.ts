@@ -1,6 +1,7 @@
 import { cloneDeep } from 'lodash-es';
-import type { ProcessNodeType, ProcessVirtualNodeType } from './types';
+import type { AddNodeInfo, ProcessNodeIdType, ProcessNodeType, ProcessVirtualNodeType } from './types';
 import type cytoscape from 'cytoscape';
+import { NodeNotFoundError, CycleDetectedError, EdgeDeletionError, NodeDeletionError, EdgeAlreadyExistsError } from './errors';
 
 const DEFAULT_OPTIONS = {
   selectable: true,
@@ -13,7 +14,294 @@ const X_LAYER_WIDTH = 180
 const Y_NODE_HEIGHT = 50
 const Y_NODE_HALF_HEIGHT = Y_NODE_HEIGHT / 2
 
-export function parseProcessNodesIntoCytoscapeElements(originalNodes: ProcessNodeType[]): cytoscape.CytoscapeOptions['elements'] {
+export function deleteNode(originalNodes: ProcessNodeType[], nodeId: ProcessNodeIdType) {
+  // 深拷贝原始节点数组
+  const nodes = cloneDeep(originalNodes)
+
+  // 找到要删除的节点 D
+  const nodeToDelete = nodes.find(n => n.id === nodeId)
+  if (!nodeToDelete) {
+    throw new NodeNotFoundError(nodeId)
+  }
+
+  // 检查删除规则
+  // 1. 不能删除唯一的开始节点
+  const startNodes = nodes.filter(n => !n.prevNodes || n.prevNodes.length === 0)
+  if (startNodes.length === 1 && startNodes[0].id === nodeId) {
+    throw new NodeDeletionError(nodeId, '不能删除唯一的开始节点')
+  }
+
+  // 2. 如果前继节点+后继节点的数量 > 6，则拒绝删除
+  const prevCount = nodeToDelete.prevNodes?.length || 0
+  const nextCount = nodeToDelete.nextNodes?.length || 0
+  if (prevCount + nextCount > 6) {
+    throw new NodeDeletionError(nodeId, `节点连接数(${prevCount + nextCount})超过限制(6)`)
+  }
+
+  // 获取前继节点集合 Fs 和后继节点集合 Bs
+  const Fs = nodeToDelete.prevNodes || [] // 前继节点集合
+  const Bs = nodeToDelete.nextNodes || [] // 后继节点集合
+
+  // 步骤1：遍历 Bs，将遍历到的当前节点标记为 B，移除 B 内前继节点中 D 的记录
+  for (const B of Bs) {
+    const bNode = nodes.find(n => n.id === B)
+    if (bNode && bNode.prevNodes) {
+      bNode.prevNodes = bNode.prevNodes.filter(id => id !== nodeId)
+    }
+  }
+
+  // 步骤2：遍历 Fs，将遍历到的当前节点标记为 F
+  for (const F of Fs) {
+    const fNode = nodes.find(n => n.id === F)
+    if (!fNode) continue
+
+    // 移除 F 内后继节点中 D 的记录
+    if (fNode.nextNodes) {
+      fNode.nextNodes = fNode.nextNodes.filter(id => id !== nodeId)
+    }
+
+    // 遍历 Bs，将遍历到的当前节点标记为 B
+    for (const B of Bs) {
+      const bNode = nodes.find(n => n.id === B)
+      if (!bNode) continue
+
+      // 将 B 插入到 F 内的后继节点记录中（避免重复）
+      if (!fNode.nextNodes) {
+        fNode.nextNodes = []
+      }
+      if (!fNode.nextNodes.includes(B)) {
+        fNode.nextNodes.push(B)
+      }
+
+      // 将 F 插入到 B 内的前继节点记录中（避免重复）
+      if (!bNode.prevNodes) {
+        bNode.prevNodes = []
+      }
+      if (!bNode.prevNodes.includes(F)) {
+        bNode.prevNodes.push(F)
+      }
+    }
+  }
+
+  // 从节点数组中移除节点 D
+  const filteredNodes = nodes.filter(n => n.id !== nodeId)
+
+  return filteredNodes
+}
+
+export function addNodeAfterSpecifyNode(originalNodes: ProcessNodeType[], node: AddNodeInfo, targetNode: ProcessNodeIdType) {
+  // 深拷贝原始节点数组
+  const nodes = cloneDeep(originalNodes)
+
+  // 找到源节点 S
+  const sourceNode = nodes.find(n => n.id === targetNode)
+  if (!sourceNode) {
+    throw new Error(`Target node with id ${targetNode} not found`)
+  }
+
+  // 创建新节点 N
+  const newNode: ProcessNodeType = {
+    id: node.id,
+    name: node.name || '未命名节点',
+    visible: true,
+    status: 'pending',
+    canDelete: true,
+    canUndo: true,
+    prevNodes: [targetNode], // 新节点的prevNodes包含源节点
+    nextNodes: [] // 新节点暂时没有后继节点
+  }
+
+  // 将新节点 N 添加到源节点 S 的 nextNodes 中
+  if (!sourceNode.nextNodes) {
+    sourceNode.nextNodes = []
+  }
+  sourceNode.nextNodes.push(node.id)
+
+  // 将新节点添加到节点数组中
+  nodes.push(newNode)
+
+  return nodes
+}
+
+export function deleteEdge(originalNodes: ProcessNodeType[], startNodeId: ProcessNodeIdType, endNodeId: ProcessNodeIdType) {
+  // 深拷贝原始节点数组
+  const nodes = cloneDeep(originalNodes)
+
+  // 找到前继节点 F 和后继节点 B
+  const startNode = nodes.find(n => n.id === startNodeId)
+  if (!startNode) {
+    throw new NodeNotFoundError(startNodeId)
+  }
+
+  const endNode = nodes.find(n => n.id === endNodeId)
+  if (!endNode) {
+    throw new NodeNotFoundError(endNodeId)
+  }
+
+  // 检查边是否存在
+  if (!startNode.nextNodes?.includes(endNodeId) || !endNode.prevNodes?.includes(startNodeId)) {
+    throw new Error(`边 ${startNodeId} -> ${endNodeId} 不存在`)
+  }
+
+  // 找到所有开始节点（没有前继节点的节点）
+  const startNodes = nodes.filter(n => !n.prevNodes || n.prevNodes.length === 0)
+
+  // 可达性检查函数：检查从给定节点集合出发是否能到达目标节点
+  function isReachableFrom(startNodeSet: ProcessNodeType[], targetNodeId: ProcessNodeIdType): boolean {
+    const visited = new Set<string>()
+    const queue: (ProcessNodeIdType | ProcessVirtualNodeType)[] = []
+
+    // 将所有起始节点加入队列
+    for (const startNode of startNodeSet) {
+      const idStr = String(startNode.id)
+      if (!visited.has(idStr)) {
+        visited.add(idStr)
+        queue.push(startNode.id)
+      }
+    }
+
+    // BFS 遍历
+    while (queue.length > 0) {
+      const currentId = queue.shift()!
+      if (currentId === targetNodeId) {
+        return true // 找到了目标节点
+      }
+
+      const currentNode = nodes.find(n => n.id === currentId)
+      if (!currentNode || !currentNode.nextNodes) continue
+
+      for (const nextId of currentNode.nextNodes) {
+        const nextIdStr = String(nextId)
+        if (!visited.has(nextIdStr)) {
+          visited.add(nextIdStr)
+          queue.push(nextId)
+        }
+      }
+    }
+
+    return false // 无法到达目标节点
+  }
+
+  // 临时删除边：从 F 的后继节点中移除 B
+  const originalStartNextNodes = [...(startNode.nextNodes || [])]
+  startNode.nextNodes = startNode.nextNodes?.filter(id => id !== endNodeId) || []
+
+  // 检查删除边后，B 是否还能从开始节点到达
+  const canReachEndNode = isReachableFrom(startNodes, endNodeId)
+
+  if (!canReachEndNode) {
+    // 恢复临时删除的边
+    startNode.nextNodes = originalStartNextNodes
+    throw new EdgeDeletionError(startNodeId, endNodeId)
+  }
+
+  // 删除边关系：将 B 从 F 的后继节点记录中移除
+  startNode.nextNodes = startNode.nextNodes.filter(id => id !== endNodeId)
+
+  // 将 F 从 B 的前继节点记录中移除
+  endNode.prevNodes = endNode.prevNodes?.filter(id => id !== startNodeId) || []
+
+  return nodes
+}
+
+export function addEdge(originalNodes: ProcessNodeType[], startNodeId: ProcessNodeIdType, endNodeId: ProcessNodeIdType) {
+  // 深拷贝原始节点数组
+  const nodes = cloneDeep(originalNodes)
+
+  // 找到前继节点 F 和后继节点 B
+  const startNode = nodes.find(n => n.id === startNodeId)
+  if (!startNode) {
+    throw new NodeNotFoundError(startNodeId)
+  }
+
+  const endNode = nodes.find(n => n.id === endNodeId)
+  if (!endNode) {
+    throw new NodeNotFoundError(endNodeId)
+  }
+
+  // 检查边是否已存在
+  const edgeExists =
+    (startNode.nextNodes && startNode.nextNodes.includes(endNodeId)) ||
+    (endNode.prevNodes && endNode.prevNodes.includes(startNodeId))
+
+  if (edgeExists) {
+    throw new EdgeAlreadyExistsError(startNodeId, endNodeId)
+  }
+
+  // 环检测：临时添加边，然后检查是否形成环
+  // 临时将 endNodeId 添加到 startNode 的 nextNodes 中
+  if (!startNode.nextNodes) {
+    startNode.nextNodes = []
+  }
+  const originalNextNodes = [...startNode.nextNodes]
+  startNode.nextNodes.push(endNodeId)
+
+  // DFS 环检测：使用递归栈记录当前路径
+  const path = new Set<string>()
+
+  function hasCycle(currentId: ProcessNodeIdType | ProcessVirtualNodeType): boolean {
+    const idStr = String(currentId)
+
+    // 如果当前节点已经在路径中，说明形成环
+    if (path.has(idStr)) {
+      return true
+    }
+
+    path.add(idStr)
+
+    const currentNode = nodes.find(n => String(n.id) === idStr)
+    if (!currentNode || !currentNode.nextNodes) {
+      path.delete(idStr)
+      return false
+    }
+
+    for (const nextNodeId of currentNode.nextNodes) {
+      if (hasCycle(nextNodeId)) {
+        return true
+      }
+    }
+
+    path.delete(idStr)
+    return false
+  }
+
+  // 从前继节点开始 DFS 搜索，检查是否形成环
+  const formsCycle = hasCycle(startNodeId)
+
+  // 撤销临时添加的边
+  startNode.nextNodes = originalNextNodes
+
+  if (formsCycle) {
+    throw new CycleDetectedError(startNodeId, endNodeId)
+  }
+
+  // 建立边关系：将 B 插入到 F 内的后继节点记录中
+  if (!startNode.nextNodes) {
+    startNode.nextNodes = []
+  }
+  if (!startNode.nextNodes.includes(endNodeId)) {
+    startNode.nextNodes.push(endNodeId)
+  }
+
+  // 将 F 插入到 B 内的前继节点记录中
+  if (!endNode.prevNodes) {
+    endNode.prevNodes = []
+  }
+  if (!endNode.prevNodes.includes(startNodeId)) {
+    endNode.prevNodes.push(startNodeId)
+  }
+
+  return nodes
+}
+
+export function parseProcessNodesIntoCytoscapeElements(
+  originalNodes: ProcessNodeType[],
+  options: {
+    hideEdges?: [ProcessNodeIdType, ProcessNodeIdType][]
+  } = {
+      hideEdges: []
+    }
+): cytoscape.CytoscapeOptions['elements'] {
   // deep clone originalNodes
   const nodes = cloneDeep(originalNodes)
   // 构造 id -> node 映射（id 统一为字符串）
@@ -74,7 +362,7 @@ export function parseProcessNodesIntoCytoscapeElements(originalNodes: ProcessNod
   // 建立一个点的 xy 表，key 为 x（层数），value 为 y[]（该层上的节点id数组，有序）
   const layerNodesMap: Record<number, string[]> = {}
   const maxLayer = Math.max(...Object.values(nodeLayerMap), 0)
-  
+
   // 填充每层的节点数组（已按 y 轴顺序排列）
   for (let layer = 0; layer <= maxLayer; layer++) {
     layerNodesMap[layer] = nodeYAxisOrderMap[layer] || []
@@ -103,41 +391,41 @@ export function parseProcessNodesIntoCytoscapeElements(originalNodes: ProcessNod
     generateVirtualNodesForEdges(nodeLayerMap, nodeYAxisOrderMap, layerNodesMap, nodeMap, startNode, endNodes)
   }
 
-    // 节点位置计算
-    Object.values(nodeMap).forEach((n) => {
-      const id = String(n.id)
-      const layer = nodeLayerMap[id] ?? 0
-      const layerOrder = nodeYAxisOrderMap[layer] ?? []
-      const yIndex = layerOrder.indexOf(id)
-      const x = layer * X_LAYER_WIDTH
-      const y = ((yIndex === -1 ? 0 : yIndex) * Y_NODE_HEIGHT) - ((layerOrder.length - 1) * Y_NODE_HALF_HEIGHT)
-  
-      // 将 position 加入到节点的原始数据副本中（不直接修改原对象）
-      const vanillaWithPos = { ...n, position: { x, y } }
-  
-      elements.push({
-        data: {
-          id: String(n.id),
-          type: 'type' in n ? (n as ProcessVirtualNodeType).type : undefined,
-        },
-        position: { x, y },
-        scratch: { vanillaData: vanillaWithPos },
-        ...DEFAULT_OPTIONS,
-        selectable: false,
-      })
+  // 节点位置计算
+  Object.values(nodeMap).forEach((n) => {
+    const id = String(n.id)
+    const layer = nodeLayerMap[id] ?? 0
+    const layerOrder = nodeYAxisOrderMap[layer] ?? []
+    const yIndex = layerOrder.indexOf(id)
+    const x = layer * X_LAYER_WIDTH
+    const y = ((yIndex === -1 ? 0 : yIndex) * Y_NODE_HEIGHT) - ((layerOrder.length - 1) * Y_NODE_HALF_HEIGHT)
+
+    // 将 position 加入到节点的原始数据副本中（不直接修改原对象）
+    const vanillaWithPos = { ...n, position: { x, y } }
+
+    elements.push({
+      data: {
+        id: String(n.id),
+        type: 'type' in n ? (n as ProcessVirtualNodeType).type : undefined,
+      },
+      position: { x, y },
+      scratch: { vanillaData: vanillaWithPos },
+      ...DEFAULT_OPTIONS,
+      selectable: false,
     })
+  })
 
   // 遍历每一个区间（相邻两层之间）
   for (let layer = 0; layer < maxLayer; layer++) {
     const leftLayerNodes = layerNodesMap[layer] || []
     const rightLayerNodes = layerNodesMap[layer + 1] || []
-    
+
     if (leftLayerNodes.length === 0 || rightLayerNodes.length === 0) continue
 
     // 计算左侧节点到右侧节点的连接关系
     // 对于左侧每个节点，找到它连接的所有右侧节点
     const leftNodeConnections: Record<string, string[]> = {}
-    
+
     leftLayerNodes.forEach((leftNodeId) => {
       const leftNode = nodeMap[leftNodeId]
       if (leftNode && leftNode.nextNodes) {
@@ -156,7 +444,7 @@ export function parseProcessNodesIntoCytoscapeElements(originalNodes: ProcessNod
 
     // 计算右侧节点从左侧节点的连接关系（用于计算 rightIndex）
     const rightNodeIncomingConnections: Record<string, string[]> = {}
-    
+
     rightLayerNodes.forEach((rightNodeId) => {
       const rightNode = nodeMap[rightNodeId]
       if (rightNode && rightNode.prevNodes) {
@@ -242,15 +530,10 @@ function generateVirtualNodesForEdges(
     const layerOrder = nodeYAxisOrderMap[layer] ?? []
     const yIndex = layerOrder.indexOf(startNode)
     const y = ((new Array(layerOrder.length).fill(0).map((_, i) => (Math.ceil(layerOrder.length / 2) - 1 - (layerOrder.length % 2 ? 0 : 0.5) - i) * Y_NODE_HEIGHT))[yIndex])
-    console.log((new Array(layerOrder.length).fill(0).map((_, i) => (Math.ceil(layerOrder.length / 2) - 1 - (layerOrder.length % 2 ? 0 : 0.5) - i) * Y_NODE_HEIGHT)));
-    
     return y
   })()
 
   const direction = startNodeY <= endNodesAverageY ? 'down' : 'up'
-
-  console.log(direction, startNode, endNodes, startNode, startNodeY, endNodesAverageY);
-  
 
   // key 为层数，value 为连线时经过该层的终点id
   // 列出所有需要添加的虚拟节点
@@ -400,73 +683,73 @@ function curveCaleWithoutAlign(leftTotal: number, leftIndex: number, rightTotal:
       }
     case -3.5:
       return {
-        'control-point-distances': [54,-54],
-        'control-point-weights': [0.15,0.85]
+        'control-point-distances': [54, -54],
+        'control-point-weights': [0.15, 0.85]
       }
     case -2.5:
       return {
-        'control-point-distances': [46,-46],
-        'control-point-weights': [0.20,0.8]
+        'control-point-distances': [46, -46],
+        'control-point-weights': [0.20, 0.8]
       }
     case -1.5:
       return {
-        'control-point-distances':[28,-28],
-        'control-point-weights': [0.25,0.75]
+        'control-point-distances': [28, -28],
+        'control-point-weights': [0.25, 0.75]
       }
     case -0.5:
       return {
-        'control-point-distances': [10,-10],
-        'control-point-weights': [0.25,0.75]
+        'control-point-distances': [10, -10],
+        'control-point-weights': [0.25, 0.75]
       }
-      case 0.5:
-        return {
-          'control-point-distances': [-10,10],
-          'control-point-weights': [0.25,0.75]
-        }
+    case 0.5:
+      return {
+        'control-point-distances': [-10, 10],
+        'control-point-weights': [0.25, 0.75]
+      }
     case 1.5:
       return {
-        'control-point-distances': [-28,28],
-        'control-point-weights': [0.25,0.75]
+        'control-point-distances': [-28, 28],
+        'control-point-weights': [0.25, 0.75]
       }
     case 2.5:
       return {
-        'control-point-distances': [-46,46],
-        'control-point-weights': [0.20,0.8]
+        'control-point-distances': [-46, 46],
+        'control-point-weights': [0.20, 0.8]
       }
-    case 3.5:     
+    case 3.5:
       return {
-        'control-point-distances': [-54,54],
-        'control-point-weights': [0.15,0.85]
+        'control-point-distances': [-54, 54],
+        'control-point-weights': [0.15, 0.85]
       }
     case 4.5:
       return {
-        'control-point-distances': [-20,20],
-        'control-point-weights': [0.34,0.66]
+        'control-point-distances': [-20, 20],
+        'control-point-weights': [0.34, 0.66]
       }
     case -5.5:
       return {
-        'control-point-distances': [28,-28],
-        'control-point-weights': [0.26,0.74]
+        'control-point-distances': [28, -28],
+        'control-point-weights': [0.26, 0.74]
       }
     case 5.5:
       return {
-        'control-point-distances': [-28,28],
-        'control-point-weights': [0.26,0.74]
+        'control-point-distances': [-28, 28],
+        'control-point-weights': [0.26, 0.74]
       }
     case -6.5:
       return {
-        'control-point-distances': [32,-32],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [32, -32],
+        'control-point-weights': [0.2, 0.8]
       }
     case 6.5:
       return {
-        'control-point-distances': [-32,32],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [-32, 32],
+        'control-point-weights': [0.2, 0.8]
       }
   }
   return {
-    'control-point-distances': [0,0],
-    'control-point-weights': [0.5,0.5]
+    'control-point-distances': [0, 0],
+    'control-point-weights': [0.5, 0.5]
   }
 }
 
@@ -480,40 +763,40 @@ function curveCaleWithAlign(leftTotal: number, leftIndex: number, rightTotal: nu
   switch (caseOfHeight) {
     case -1:
       return {
-        'control-point-distances': [20,-20],
-        'control-point-weights': [0.3,0.7]
+        'control-point-distances': [20, -20],
+        'control-point-weights': [0.25, 0.75]
       }
     case 1:
       return {
-        'control-point-distances': [-20,20],
-        'control-point-weights': [0.3,0.7]
+        'control-point-distances': [-20, 20],
+        'control-point-weights': [0.25, 0.75]
       }
     case -2:
       return {
-        'control-point-distances': [38,-38],
-        'control-point-weights': [0.25,0.75]
+        'control-point-distances': [38, -38],
+        'control-point-weights': [0.25, 0.75]
       }
     case 2:
       return {
-        'control-point-distances': [-38,38],
-        'control-point-weights': [0.25,0.75]
+        'control-point-distances': [-38, 38],
+        'control-point-weights': [0.25, 0.75]
       }
     case -3:
       return {
-        'control-point-distances': [51,-51],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [51, -51],
+        'control-point-weights': [0.2, 0.8]
       }
     case 3:
       return {
-        'control-point-distances': [-51,51],
-        'control-point-weights': [0.2,0.8]
+        'control-point-distances': [-51, 51],
+        'control-point-weights': [0.2, 0.8]
       }
   }
 
 
   return {
-    'control-point-distances': [0,0],
-    'control-point-weights': [0.5,0.5]
+    'control-point-distances': [0, 0],
+    'control-point-weights': [0.5, 0.5]
   }
 }
 
@@ -634,7 +917,7 @@ export function getPrecomputedCurvatureStyle(
 
   // 默认值
   return {
-    'control-point-distances': [0,0],
+    'control-point-distances': [0, 0],
     'control-point-weights': [0.5, 0.5]
   }
 }

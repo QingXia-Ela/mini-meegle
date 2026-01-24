@@ -8,6 +8,7 @@
   - api # 存放API文件，从 `src/api/request` 引入请求方法，请求统一命名为 `apiXXXX`，如 `apiGetUsers`
   - assets # 静态资源文件
   - components # 页面内组件，如果存在多页面通用组件，则将组件放入 `src/components`
+    - 组件如果较为复杂，需要将组件名字设置为文件夹，并在里面创建 `index.tsx` 作为组件导出出口
   - constants # 页面用的映射常量，如 Table 的列字段，枚举等
   - hooks # 页面布局文件
   - layouts # 页面布局文件

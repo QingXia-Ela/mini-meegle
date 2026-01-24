@@ -9,6 +9,11 @@ import {
 import { WorkItem } from '../work-item/work-item.model';
 import { WorkflowType } from 'src/workflow-type/workflow-type.model';
 
+export interface FieldStatus {
+  fieldId: string;
+  value: any;
+}
+
 @Table({ tableName: 'tasks', timestamps: true })
 export class Task extends Model {
   @Column({ type: DataType.INTEGER, autoIncrement: true, primaryKey: true })
@@ -32,17 +37,17 @@ export class Task extends Model {
   declare creator: number;
 
   @Column({ type: DataType.VIRTUAL, allowNull: true })
-  get fieldStatusList(): unknown[] {
+  get fieldStatusList(): FieldStatus[] {
     const raw = this.getDataValue('fieldStatusListRaw') as string;
     if (!raw) return [];
     try {
-      return JSON.parse(raw) as unknown[];
+      return JSON.parse(raw) as FieldStatus[];
     } catch {
       return [];
     }
   }
 
-  set fieldStatusList(value: unknown[]) {
+  set fieldStatusList(value: FieldStatus[]) {
     this.setDataValue('fieldStatusListRaw', JSON.stringify(value || []));
   }
 

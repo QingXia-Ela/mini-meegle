@@ -1,9 +1,5 @@
 import type { ProcessNodeType } from './types';
 
-export const TestMap: Record<string, ProcessNodeType> = {
-
-}
-
 export const BasicMap: Record<string, ProcessNodeType> = {
   'start': {
     status: 'completed',
@@ -85,4 +81,47 @@ export const BasicMap: Record<string, ProcessNodeType> = {
     id: 'end',
     visible: true,
   }
+}
+
+export const TestMap: Record<string, ProcessNodeType> = {
+  'start': {
+    id: 'start',
+    name: '开始',
+    visible: true,
+    status: 'completed',
+    canDelete: false,
+    canUndo: false,
+    prevNodes: [],
+    nextNodes: ['mid_2','mid_1'],
+  },
+    'mid_1': {
+    id: 'mid_1',
+    name: '中间节点1',
+    visible: true,
+    status: 'in_progress',
+    canDelete: true,
+    canUndo: true,
+    prevNodes: ['start'],
+    nextNodes: ['end', 'mid_2'],
+  },
+  'mid_2': {
+    id: 'mid_2',
+    name: '中间节点2',
+    visible: true,
+    status: 'in_progress',
+    canDelete: true,
+    canUndo: true,
+    prevNodes: ['start', 'mid_1'],
+    nextNodes: ['end'],
+  },
+  'end': {
+    id: 'end',
+    name: '结束',
+    visible: true,
+    status: 'pending',
+    canDelete: false,
+    canUndo: true,
+    prevNodes: ['mid_1', 'mid_2'],
+    nextNodes: [],
+  },
 }

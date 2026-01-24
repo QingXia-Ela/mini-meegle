@@ -178,7 +178,7 @@ function SpaceWorkItemLayout() {
               </div>
             )}
             optionLabelProp="label"
-            dropdownRender={(menu) => (
+            popupRender={(menu) => (
               <>
                 {menu}
                 <div className="border-t border-gray-200 p-2 space-y-1">
