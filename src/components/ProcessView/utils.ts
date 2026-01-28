@@ -10,7 +10,8 @@ const DEFAULT_OPTIONS = {
   pannable: false,
 }
 
-const X_LAYER_WIDTH = 180
+const X_START = -400
+const X_LAYER_WIDTH = 200
 const Y_NODE_HEIGHT = 50
 const Y_NODE_HALF_HEIGHT = Y_NODE_HEIGHT / 2
 
@@ -397,7 +398,7 @@ export function parseProcessNodesIntoCytoscapeElements(
     const layer = nodeLayerMap[id] ?? 0
     const layerOrder = nodeYAxisOrderMap[layer] ?? []
     const yIndex = layerOrder.indexOf(id)
-    const x = layer * X_LAYER_WIDTH
+    const x = X_START + layer * X_LAYER_WIDTH
     const y = ((yIndex === -1 ? 0 : yIndex) * Y_NODE_HEIGHT) - ((layerOrder.length - 1) * Y_NODE_HALF_HEIGHT)
 
     // 将 position 加入到节点的原始数据副本中（不直接修改原对象）

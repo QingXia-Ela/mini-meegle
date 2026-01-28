@@ -1,28 +1,70 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import edgehandles from 'cytoscape-edgehandles';
 import type { EdgeSingular, NodeSingular } from 'cytoscape';
 import type { ProcessNodeType, ProcessNodeIdType } from './types';
 import { addEdge, getColorByStatus, parseProcessNodesIntoCytoscapeElements } from './utils';
 import { message } from 'antd';
-
+import { MenuOutlined, MoreOutlined } from '@ant-design/icons';
+import cytoscapePopper from 'cytoscape-popper';
+import {
+  computePosition,
+  flip,
+  shift,
+  limitShift,
+} from '@floating-ui/dom';
+import { popperContainerDOM, togglePopperContainer } from './popperContainer';
+import type { ForwardedRef, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { measureTextLength } from './MeasureTextLength';
+import { debounce } from 'lodash-es';
 // 注册 edgehandles 扩展
 cytoscape.use(edgehandles);
+
+
+cytoscape.use(cytoscapePopper(function (ref, content, opts) {
+  function update() {
+    computePosition(
+      ref,
+      content,
+      // see https://floating-ui.com/docs/computePosition#options
+      {
+        // matching the default behaviour from Popper@2
+        // https://floating-ui.com/docs/migration#configure-middleware
+        middleware: [
+          flip(),
+          shift({ limiter: limitShift() })
+        ],
+        ...opts,
+      }
+    ).then(({ x, y }) => {
+      Object.assign(content.style, {
+        left: `${x}px`,
+        top: `${y + 16}px`,
+      });
+    });
+  }
+  update();
+  return { update };
+}));
 
 interface ProcessViewProps {
   nodes: ProcessNodeType[]
   // node only
-  onNodeClick?: (node: ProcessNodeType) => void
+}
+
+export interface ProcessViewWithEditModeRef {
+  popupMenuAtNode: (nodeId: ProcessNodeIdType, jsxNode: ReactNode) => void
+  hideNodeMenu: () => void
 }
 
 interface ProcessViewWithEditModeProps {
   nodes: ProcessNodeType[]
   onNodeClick?: (node: ProcessNodeType) => void
+  onNodeMenuClick?: (node: ProcessNodeType) => void
   onEdgeClick?: (edge: EdgeSingular) => void
-  onEdgeCreate?: (sourceNodeId: ProcessNodeIdType, targetNodeId: ProcessNodeIdType) => void
   onAddEdge?: (sourceNodeId: ProcessNodeIdType, targetNodeId: ProcessNodeIdType, newNodes: ProcessNodeType[]) => void
 }
-
 
 const buildStatusDot = (status?: string) => {
   const color = getColorByStatus(status || '');
@@ -43,25 +85,67 @@ const buildVirtualNodeLine = (height: number = 2) => {
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
-export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdgeCreate, onAddEdge }: ProcessViewWithEditModeProps) {
+function setNodeUnselectStyle(node: NodeSingular) {
+  node.style('border-color', 'gray')
+  node.style('border-width', 1)
+}
+
+function setNodeSelectStyle(node: NodeSingular) {
+  node.style('border-color', '#3b82f6')
+  node.style('border-width', 2)
+}
+
+export const ProcessViewWithEditMode = forwardRef(function ({
+  nodes,
+  onNodeClick,
+  onNodeMenuClick,
+  onEdgeClick,
+  onAddEdge,
+}: ProcessViewWithEditModeProps, ref: ForwardedRef<ProcessViewWithEditModeRef>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cytoRef = useRef<cytoscape.Core | null>(null)
+  const [jsxNode, setJsxNode] = useState<ReactNode | null>(null)
+  const [hoveredNode, setHoveredNode] = useState<NodeSingular | null>(null)
+  const hoverButtonRef = useRef<HTMLDivElement>(null)
+  const hoverPopperRef = useRef<{ update: () => void } | null>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastPanRef = useRef<{ x: number, y: number } | null>(null)
+
+  useEffect(() => {
+    if (hoveredNode && hoverButtonRef.current) {
+      hoverPopperRef.current = hoveredNode.popper({
+        content: hoverButtonRef.current,
+        popper: {
+          placement: 'bottom',
+          strategy: 'fixed',
+        }
+      })
+    } else {
+      hoverPopperRef.current = null
+    }
+  }, [hoveredNode])
+
+  const changePanRef = useCallback(debounce((pan: { x: number, y: number }) => {
+    lastPanRef.current = pan
+  }, 100), [])
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    const pan = {
+    const pan = lastPanRef.current || {
       x: (containerRef.current.clientWidth || 0) / 2,
       y: (containerRef.current.clientHeight || 0) / 2,
     }
+    lastPanRef.current = pan
 
     const cy = cytoscape({
       container: containerRef.current,
       elements: parseProcessNodesIntoCytoscapeElements(nodes),
-      // zoomingEnabled: false,
-      // userZoomingEnabled: false,
-      panningEnabled: false,
-      userPanningEnabled: false,
+      // zoom: 0.5,
+      zoomingEnabled: false,
+      userZoomingEnabled: false,
+      panningEnabled: true,
+      userPanningEnabled: true,
       pan,
       style: [
         {
@@ -70,7 +154,8 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
             'shape': 'round-rectangle',
             'width': (ele: NodeSingular) => {
               const data = ele.scratch('vanillaData') as ProcessNodeType | undefined
-              return (data?.name?.length || 0) * 16 + 24
+              const textLength = measureTextLength(data?.name || '', 14)
+              return textLength + 24
             },
             // 
             'height': 1,
@@ -81,8 +166,8 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
             },
             'text-valign': 'center',
             'text-halign': 'center',
-            'font-size': 16,
             'color': '#4a4a4a',
+            'font-size': 14,
             'background-color': '#ffffff',
             'background-width': '10px',
             'background-height': '10px',
@@ -186,6 +271,11 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
       ]
     })
 
+    cy.on('pan', () => {
+      const pan = cy.pan()
+      changePanRef(pan)
+    })
+
     let selectNode: NodeSingular | null = null
     let currentMouseHoverNode: NodeSingular | null = null
     // make all nodes and edges selectable
@@ -194,37 +284,53 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
       .on('mouseover', (event) => {
         currentMouseHoverNode = event.target as NodeSingular
         const node = event.target as NodeSingular
+
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current)
+          hideTimerRef.current = null
+        }
+        setHoveredNode(node)
+
         if (node.active() || node.selected()) return
-        node
-          .style('border-color', '#3b82f6')
-          .style('border-width', 2)
+        setNodeSelectStyle(node)
       })
       .on('mouseout', (event) => {
         currentMouseHoverNode = null
         // modify border color to gray
         const node = event.target as NodeSingular
+
+        hideTimerRef.current = setTimeout(() => {
+          setHoveredNode(null)
+        }, 100)
+
         if (node.active() || node.selected()) return
-        node
-          .style('border-color', 'gray')
-          .style('border-width', 1)
+        setNodeUnselectStyle(node)
       })
       .on('mousedown', (event) => {
         selectNode = event.target as NodeSingular
       })
     cy.on('mouseup', () => {
+      togglePopperContainer(false)
       if (currentMouseHoverNode && selectNode) {
         const selectNodeId = selectNode.data('id') as ProcessNodeIdType
         const currentMouseHoverNodeId = currentMouseHoverNode.data('id') as ProcessNodeIdType
 
+        if (selectNodeId === currentMouseHoverNodeId) {
+          setNodeUnselectStyle(selectNode)
+          selectNode.unselect()
+          selectNode = null
+          return
+        }
         try {
           onAddEdge?.(selectNodeId, currentMouseHoverNodeId, addEdge(nodes, selectNodeId, currentMouseHoverNodeId))
         } catch (error) {
           message.error('边创建失败:' + (error as Error).message)
         }
+        return
       }
       if (selectNode) {
-        selectNode.style('border-color', 'gray')
-        selectNode.style('border-width', 1)
+        setNodeUnselectStyle(selectNode)
+        selectNode.unselect()
         selectNode = null
       }
     })
@@ -242,31 +348,11 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
     });
     eh.enableDrawMode()
 
-    // 监听边创建完成事件
-    cy.on('ehcomplete', (_event: unknown, sourceNode: NodeSingular, targetNode: NodeSingular, addedEdge: EdgeSingular) => {
-      // 立即删除 cytoscape 创建的边，因为我们要通过 addEdge 方法重新计算并创建
-      addedEdge.remove()
-
-      // 获取源节点和目标节点的实际 ID
-      const sourceId = sourceNode.data('id') as ProcessNodeIdType
-      const targetId = targetNode.data('id') as ProcessNodeIdType
-
-      // 触发回调，让父组件处理边的创建
-      onEdgeCreate?.(sourceId, targetId)
-    })
-
     cy.on('click', 'node', (event) => {
       const node = event.target as NodeSingular
       node.select()
       onNodeClick?.(node.scratch('vanillaData') as ProcessNodeType)
     })
-
-    cy.on('click', 'edge', (event) => {
-      const edge = event.target as EdgeSingular
-      edge.select()
-      onEdgeClick?.(edge)
-    })
-
     cytoRef.current = cy
 
     return () => {
@@ -278,14 +364,71 @@ export function ProcessViewWithEditMode({ nodes, onNodeClick, onEdgeClick, onEdg
         cytoRef.current = null
       }
     }
-  }, [nodes, onNodeClick, onEdgeClick, onEdgeCreate])
-  return (
-    <div className="h-full flex justify-center items-center flex-1 w-full" ref={containerRef}>
-    </div>
-  );
-}
+  }, [nodes, onNodeClick, onEdgeClick, onAddEdge, onNodeMenuClick])
 
-function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
+  useImperativeHandle(ref, () => ({
+    popupMenuAtNode: (nodeId: ProcessNodeIdType, jsxNode: ReactNode) => {
+      const cy = cytoRef.current as cytoscape.Core
+      if (!cy) return
+      const node = cy.getElementById(nodeId.toString()) as NodeSingular
+      if (!node) return
+
+      setJsxNode(jsxNode)
+      node.popper({
+        content: popperContainerDOM,
+        popper: {
+          placement: 'bottom',
+          strategy: 'fixed',
+        }
+      })
+      togglePopperContainer(true)
+    },
+    hideNodeMenu: () => {
+      togglePopperContainer(false)
+      setJsxNode(null)
+    }
+  }))
+
+  const handleMouseEnterButton = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }
+
+  const handleMouseLeaveButton = () => {
+    hideTimerRef.current = setTimeout(() => {
+      setHoveredNode(null)
+    }, 100)
+  }
+
+  const handleMenuButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hoveredNode) {
+      onNodeMenuClick?.(hoveredNode.scratch('vanillaData') as ProcessNodeType)
+    }
+  }
+
+  return (
+    <>
+      <div className="h-full flex justify-center items-center flex-1 w-full" ref={containerRef}>
+      </div>
+      {createPortal(jsxNode, popperContainerDOM)}
+      <div
+        ref={hoverButtonRef}
+        className="fixed z-[9998] flex items-center justify-center w-6 h-6 bg-white border border-gray-200 shadow-sm cursor-pointer hover:bg-gray-50 hover:border-blue-400 text-gray-500 hover:text-blue-500 transition-all rounded-full"
+        style={{ display: hoveredNode ? 'flex' : 'none' }}
+        onMouseEnter={handleMouseEnterButton}
+        onMouseLeave={handleMouseLeaveButton}
+        onClick={handleMenuButtonClick}
+      >
+        <MenuOutlined style={{ fontSize: 12 }} />
+      </div>
+    </>
+  );
+})
+
+function ProcessView({ nodes }: ProcessViewProps) {
   const cytoRef = useRef<cytoscape.Core | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -314,7 +457,8 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
             'shape': 'round-rectangle',
             'width': (ele: NodeSingular) => {
               const data = ele.scratch('vanillaData') as ProcessNodeType | undefined
-              return (data?.name?.length || 0) * 16 + 24
+              const textLength = measureTextLength(data?.name || '', 14)
+              return textLength + 24
             },
             'height': 1,
             'padding': '16px',
@@ -324,7 +468,7 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
             },
             'text-valign': 'center',
             'text-halign': 'center',
-            'font-size': 16,
+            'font-size': 14,
             'color': '#4a4a4a',
             'background-color': '#ffffff',
             'background-width': '10px',
@@ -343,15 +487,15 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
           selector: 'node[type = "virtual_node"]',
           style: {
             'width': 72,
-            'height': 1,
+            'height': 2,
             'padding': '16px',
-            'background-color': 'rgba(252,252,252,0)',
+            'background-color': 'rgba(255,255,255,0)',
             'label': '',
-            'background-image': buildVirtualNodeLine(),
+            'background-image': buildVirtualNodeLine(2),
             'background-repeat': 'no-repeat',
-            // 'background-position-x': '-32px',
+            'background-position-y': 17,
             'background-width': '100%',
-            'background-height': '1px',
+            'background-height': 2,
           }
         },
         {

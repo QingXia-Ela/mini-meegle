@@ -12,9 +12,11 @@
   "dependencies": {
     "@ant-design/icons": "6.1.0",
     "@ant-design/pro-components": "2.8.10",
+    "@floating-ui/dom": "1.7.4",
     "antd": "5.29.1",
     "cytoscape": "3.33.1",
     "cytoscape-edgehandles": "4.0.1",
+    "cytoscape-popper": "4.0.1",
     "dayjs": "1.11.19",
     "lodash": "4.17.21",
     "lodash-es": "4.17.21",

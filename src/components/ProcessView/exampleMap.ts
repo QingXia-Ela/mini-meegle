@@ -1,5 +1,40 @@
 import type { ProcessNodeType } from './types';
 
+// 一个开始节点，一个推进中节点，一个结束节点
+const DEFAULT_MAP: Record<string, ProcessNodeType> = {
+  'start': {
+    status: 'pending',
+    name: '开始',
+    canUndo: false,
+    canDelete: false,
+    prevNodes: [],
+    nextNodes: ['process'],
+    speicalMark: 'startNode',
+    id: 'start',
+    visible: true,
+  },
+  'process': {
+    status: 'pending',
+    name: '推进中',
+    canUndo: true,
+    canDelete: true,
+    prevNodes: ['start'],
+    nextNodes: ['end'],
+    id: 'process',
+    visible: true,
+  },
+  'end': {
+    status: 'pending',
+    name: '结束',
+    canUndo: true,
+    canDelete: false,
+    prevNodes: ['process'],
+    nextNodes: [],
+    id: 'end',
+    visible: true,
+  },
+}
+
 export const BasicMap: Record<string, ProcessNodeType> = {
   'start': {
     status: 'completed',
@@ -8,6 +43,7 @@ export const BasicMap: Record<string, ProcessNodeType> = {
     canDelete: false,
     prevNodes: [],
     nextNodes: ['mid_0', 'mid_1', 'mid_2', 'mid_3', 'mid_4'],
+    speicalMark: 'startNode',
     id: 'start',
     visible: true,
   },
@@ -92,9 +128,10 @@ export const TestMap: Record<string, ProcessNodeType> = {
     canDelete: false,
     canUndo: false,
     prevNodes: [],
-    nextNodes: ['mid_2','mid_1'],
+    nextNodes: ['mid_2', 'mid_1'],
+    speicalMark: 'startNode',
   },
-    'mid_1': {
+  'mid_1': {
     id: 'mid_1',
     name: '中间节点1',
     visible: true,
@@ -125,3 +162,5 @@ export const TestMap: Record<string, ProcessNodeType> = {
     nextNodes: [],
   },
 }
+
+export default DEFAULT_MAP;

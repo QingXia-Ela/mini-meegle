@@ -57,7 +57,7 @@ const WorkItemSettings = () => {
         identifier: string;
         description?: string;
       };
-      
+
       setLoading(true);
       await apiCreateWorkItem({
         id: values.identifier,
@@ -132,7 +132,7 @@ const WorkItemSettings = () => {
       <div className="flex justify-between items-center mb-8">
         <div className="text-xl text-[#262626] font-bold">工作项管理</div>
         <Space>
-          <Button 
+          <Button
             className="border-[#d9d9d9] text-[#262626]"
             onClick={() => {
               setIsModalOpen(true);
@@ -214,8 +214,8 @@ const WorkItemSettings = () => {
             name="name"
             rules={[{ required: true, message: '请输入名称' }]}
           >
-            <Input 
-              placeholder="请输入名称" 
+            <Input
+              placeholder="请输入名称"
               className="h-10 bg-[#f5f5f5] border-none hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] rounded-lg"
             />
           </Form.Item>
@@ -232,13 +232,13 @@ const WorkItemSettings = () => {
             name="identifier"
             rules={[{ required: true, message: '请输入系统标识' }]}
           >
-            <Input 
-              placeholder="请输入系统标识" 
+            <Input
+              placeholder="请输入系统标识"
               className="h-10 bg-[#f5f5f5] border-none hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] rounded-lg"
               suffix={
-                <Button 
-                  type="link" 
-                  size="small" 
+                <Button
+                  type="link"
+                  size="small"
                   onClick={() => form.setFieldValue('identifier', generateRandomId())}
                 >
                   随机生成
@@ -251,8 +251,8 @@ const WorkItemSettings = () => {
             label={<span className="font-medium">描述</span>}
             name="description"
           >
-            <Input.TextArea 
-              placeholder="请输入描述" 
+            <Input.TextArea
+              placeholder="请输入描述"
               rows={3}
               className="bg-[#f5f5f5] border-none hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] rounded-lg resize-none"
             />

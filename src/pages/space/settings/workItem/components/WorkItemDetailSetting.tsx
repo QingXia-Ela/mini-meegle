@@ -77,7 +77,7 @@ const WorkItemDetailSetting = ({
     () => [
       { key: 'info', label: '基本信息' },
       { key: 'field', label: '字段管理' },
-      { key: 'layout', label: '页面布局' },
+      // { key: 'layout', label: '页面布局' },
       { key: 'flow', label: '流程管理' },
       { key: 'role', label: '角色管理' },
     ],
@@ -172,8 +172,8 @@ const WorkItemDetailSetting = ({
             <div
               key={tab.key}
               className={`px-4 h-full flex items-center cursor-pointer transition-all border-b-2 relative top-[1px] ${activeTab === tab.key
-                  ? 'text-blue-600 border-blue-600 font-medium'
-                  : 'text-[#595959] border-transparent hover:text-blue-600'
+                ? 'text-blue-600 border-blue-600 font-medium'
+                : 'text-[#595959] border-transparent hover:text-blue-600'
                 }`}
               onClick={() => setActiveTab(tab.key)}
             >
@@ -194,7 +194,7 @@ const WorkItemDetailSetting = ({
       <div className="flex-1 overflow-y-auto bg-[#fafafa] flex justify-center">
         {activeTab === 'info' && (
           <div className="w-full max-w-[1000px] px-8">
-            <div className="bg-white rounded-lg p-8 border border-[#f0f0f0] mb-8">
+            <div className="bg-white rounded-lg p-8 border border-[#f0f0f0] my-8">
               <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center">
                   <div className="w-[3px] h-4 bg-blue-600 rounded-full mr-2" />
@@ -266,8 +266,8 @@ const WorkItemDetailSetting = ({
                         key={color}
                         onClick={() => setSelectedColor(color)}
                         className={`w-8 h-8 rounded-lg cursor-pointer flex items-center justify-center transition-all ${selectedColor === color
-                            ? 'ring-2 ring-offset-2 ring-blue-500'
-                            : 'hover:opacity-80'
+                          ? 'ring-2 ring-offset-2 ring-blue-500'
+                          : 'hover:opacity-80'
                           }`}
                         style={{ backgroundColor: color }}
                       >
@@ -283,8 +283,8 @@ const WorkItemDetailSetting = ({
                         key={item.key}
                         onClick={() => setSelectedIcon(item.key)}
                         className={`w-8 h-8 rounded flex items-center justify-center cursor-pointer transition-all ${selectedIcon === item.key
-                            ? 'bg-blue-500 text-white rounded-lg shadow-sm'
-                            : 'text-[#595959] hover:bg-gray-100'
+                          ? 'bg-blue-500 text-white rounded-lg shadow-sm'
+                          : 'text-[#595959] hover:bg-gray-100'
                           }`}
                       >
                         {item.icon}

@@ -113,6 +113,8 @@ export interface WorkflowType {
   id: number;
   wid: string;
   name: string;
+  nodesDataRaw?: string;
+  nodesData?: any;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -130,7 +132,7 @@ export function apiCreateWorkflowType(data: { wid: string; name: string }) {
   });
 }
 
-export function apiUpdateWorkflowType(id: number, data: { name?: string }) {
+export function apiUpdateWorkflowType(id: number, data: { name?: string; nodesDataRaw?: string }) {
   return request<WorkflowType>(`/workflow-types/${id}`, {
     method: 'PUT',
     body: data,

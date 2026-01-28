@@ -14,6 +14,9 @@ importers:
       '@ant-design/pro-components':
         specifier: 2.8.10
         version: 2.8.10(antd@5.29.1(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(rc-field-form@2.7.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@floating-ui/dom':
+        specifier: 1.7.4
+        version: 1.7.4
       antd:
         specifier: 5.29.1
         version: 5.29.1(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -21,6 +24,9 @@ importers:
         specifier: 3.33.1
         version: 3.33.1
       cytoscape-edgehandles:
+        specifier: 4.0.1
+        version: 4.0.1(cytoscape@3.33.1)
+      cytoscape-popper:
         specifier: 4.0.1
         version: 4.0.1(cytoscape@3.33.1)
       dayjs:
@@ -515,6 +521,15 @@ packages:
   '@eslint/plugin-kit@0.3.5':
     resolution: {integrity: sha512-Z5kJ+wU3oA7MMIqVR9tyZRtjYPr4OC004Q4Rw7pgOKUOKkJfZ3O24nz3WYfGRpMDNmcOi3TwQOmgm7B7Tpii0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@floating-ui/core@1.7.3':
+    resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
+
+  '@floating-ui/dom@1.7.4':
+    resolution: {integrity: sha512-OOchDgh4F2CchOX94cRVqhvy7b3AFb+/rQXyswmzmGakRfkMgoWVjfnLWkRirfLEfuD4ysVW16eXzwt3jHIzKA==}
+
+  '@floating-ui/utils@0.2.10':
+    resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -1185,6 +1200,11 @@ packages:
 
   cytoscape-edgehandles@4.0.1:
     resolution: {integrity: sha512-uSYshkqRZ4luCxK295bEVTg46q4ZW+fwJhcIzMrtfNR7zeAnJ38Z48kUGeu5ibtXkgLbcZAg0YE4ED2dRuaePg==}
+    peerDependencies:
+      cytoscape: ^3.2.0
+
+  cytoscape-popper@4.0.1:
+    resolution: {integrity: sha512-u2gYDMMvGSlAJbNfKvMljOM/p+BrHu0A4VcpELa+xJf54HoMn+nV0iuhALZx+O89b74SKJRy7jYo2WfkD5uvsw==}
     peerDependencies:
       cytoscape: ^3.2.0
 
@@ -2794,6 +2814,17 @@ snapshots:
       '@eslint/core': 0.15.2
       levn: 0.4.1
 
+  '@floating-ui/core@1.7.3':
+    dependencies:
+      '@floating-ui/utils': 0.2.10
+
+  '@floating-ui/dom@1.7.4':
+    dependencies:
+      '@floating-ui/core': 1.7.3
+      '@floating-ui/utils': 0.2.10
+
+  '@floating-ui/utils@0.2.10': {}
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.7':
@@ -3474,6 +3505,10 @@ snapshots:
       cytoscape: 3.33.1
       lodash.memoize: 4.1.2
       lodash.throttle: 4.1.1
+
+  cytoscape-popper@4.0.1(cytoscape@3.33.1):
+    dependencies:
+      cytoscape: 3.33.1
 
   cytoscape@3.33.1: {}
 
