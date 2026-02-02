@@ -40,7 +40,11 @@ interface StatusResposne<T> {
 
 如果需要详细关注网络请求的状态变化，并修改相关 UI 表现，可以使用 `hooks/useRequest.ts` 对请求封装。
 
-## 组件库
+## 标准库
+
+配备 `dayjs` `lodash-es`
+
+### 组件库
 
 采用 `antd 5.x` 版本，并配备图标库
 

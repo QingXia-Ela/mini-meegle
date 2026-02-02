@@ -47,8 +47,8 @@ const columns = [
   },
   {
     title: '排期',
-    dataIndex: 'status',
-    key: 'status',
+    dataIndex: 'schedule',
+    key: 'schedule',
     render: (_: any, item: any) => <span className="text-lg">{`${dayjs(item.startTime).format('MM-DD')} - ${dayjs(item.endTime).format('MM-DD')}`}</span>,
     width: 180,
   },

@@ -11,6 +11,7 @@ import { WorkItemModule } from './work-item/work-item.module';
 import { WorkItemRoleModule } from './work-item-role/work-item-role.module';
 import { WorkItemFieldModule } from './work-item-field/work-item-field.module';
 import { TaskModule } from './task/task.module';
+import { TaskNodeStatusModule } from './task-nodestatus/task-nodestatus.module';
 import { WorkflowTypeModule } from './workflow-type/workflow-type.module';
 import { CommentModule } from './task-comment/comment.module';
 import { NoticeModule } from './notice/notice.module';
@@ -70,6 +71,7 @@ const {
     WorkItemRoleModule,
     WorkItemFieldModule,
     TaskModule,
+    TaskNodeStatusModule,
     WorkflowTypeModule,
     CommentModule,
     NoticeModule,

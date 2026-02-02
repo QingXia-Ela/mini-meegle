@@ -1,10 +1,10 @@
 import { EditOutlined, HomeFilled, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router';
 import WorkItemStatusView from './components/WorkItemStatusView';
-import { Button, Form, Input, Table, Tabs, type InputRef, type TabsProps, type FormInstance, Select, DatePicker, Modal, message, InputNumber, Switch } from 'antd';
+import { Button, Form, Input, Table, Tabs, type TabsProps, type FormInstance, Select, DatePicker, Modal, message, InputNumber, Switch } from 'antd';
 import MeegleCardFrame from '@/components/workItem/MeegleCardFrame';
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { get, post } from '@/api/request';
+import { get, post, put } from '@/api/request';
 import MemberSelect from '@/components/MemberSelect';
 import dayjs from 'dayjs';
 import { FieldType, SystemFieldId } from '@/constants/field';
@@ -169,10 +169,11 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
     return 0;
   });
 
-  const displayFields = sortedFields.filter(f => 
-    f.id === SystemFieldId.NAME || 
-    f.id === SystemFieldId.DESCRIPTION || 
-    f.id === SystemFieldId.WORKFLOW_TYPE || 
+  const displayFields = sortedFields.filter(f =>
+    f.id === SystemFieldId.NAME ||
+    f.id === SystemFieldId.DESCRIPTION ||
+    f.id === SystemFieldId.WORKFLOW_TYPE ||
+    f.id === SystemFieldId.SCHEDULE ||
     f.systemType === 'custom'
   );
 
@@ -184,7 +185,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
       onCancel={onCancel}
       confirmLoading={loading}
       width={600}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">
         {displayFields.map(field => (
@@ -225,23 +226,11 @@ const items: TabsProps['items'] = [
   }
 ];
 
-const editTypeMap = {
-  input: {
-    Component: Input
-  },
-  select: {
-    Component: Select
-  },
-  date: {
-    Component: DatePicker
-  }
-}
-
 const defaultColumns = [
   {
     title: '待办事项',
-    dataIndex: 'name',
-    key: 'name',
+    dataIndex: SystemFieldId.NAME,
+    key: SystemFieldId.NAME,
     editable: true,
     width: 240,
     clickJumpToWorkItem: true,
@@ -262,6 +251,7 @@ const defaultColumns = [
     title: '创建时间',
     dataIndex: 'createdAt',
     key: 'createdAt',
+    render: (value: string) => value ? dayjs(value).format('YYYY-MM-DD') : '-',
   },
   {
     title: '创建人',
@@ -270,9 +260,20 @@ const defaultColumns = [
   },
   {
     title: '排期',
-    dataIndex: 'schedule',
-    key: 'schedule',
+    dataIndex: SystemFieldId.SCHEDULE,
+    key: SystemFieldId.SCHEDULE,
     editable: true,
+    required: false,
+    editType: 'dateRange',
+    render: (value: any) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) {
+        return <span className="text-gray-400">未排期</span>;
+      }
+      if (Array.isArray(value) && value.length === 2) {
+        return `${dayjs(value[0]).format('YYYY-MM-DD')} ~ ${dayjs(value[1]).format('YYYY-MM-DD')}`;
+      }
+      return value;
+    }
   },
   {
     title: '进行中节点',
@@ -286,8 +287,8 @@ const defaultColumns = [
   },
   {
     title: '描述',
-    dataIndex: 'description',
-    key: 'description',
+    dataIndex: SystemFieldId.DESCRIPTION,
+    key: SystemFieldId.DESCRIPTION,
     editable: true,
   },
 ]
@@ -316,6 +317,8 @@ interface EditableCellProps {
   dataIndex: string;
   record: any;
   handleSave: (record: any) => void;
+  editType?: string;
+  required?: boolean;
 }
 
 const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
@@ -325,23 +328,29 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
   dataIndex,
   record,
   handleSave,
+  editType,
+  required = true,
   ...restProps
 }) => {
   const [editing, setEditing] = useState(false);
-  const inputRef = useRef<InputRef>(null);
+  const inputRef = useRef<any>(null);
   const form = useContext(EditableContext)!;
   const navigate = useNavigate();
   const { workItemId, spaceId } = useParams<{ workItemId: string; spaceId: string }>();
 
   useEffect(() => {
-    if (editing) {
+    if (editing && editType !== 'dateRange') {
       inputRef.current?.focus();
     }
-  }, [editing]);
+  }, [editing, editType]);
 
   const toggleEdit = () => {
     setEditing(!editing);
-    form.setFieldsValue({ [dataIndex]: record[dataIndex] });
+    let value = record[dataIndex];
+    if (editType === 'dateRange' && Array.isArray(value)) {
+      value = value.map((v: any) => v ? dayjs(v) : null);
+    }
+    form.setFieldsValue({ [dataIndex]: value });
   };
 
   const save = async () => {
@@ -349,6 +358,9 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
       const values = await form.validateFields();
 
       toggleEdit();
+      if (editType === 'dateRange' && Array.isArray(values[dataIndex])) {
+        values[dataIndex] = values[dataIndex].map((v: any) => v?.toISOString());
+      }
       handleSave({ ...record, ...values });
     } catch (errInfo) {
       console.log('Save failed:', errInfo);
@@ -362,16 +374,27 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
       <Form.Item
         style={{ margin: 0 }}
         name={dataIndex}
-        rules={[{ required: true, message: `${title} is required.` }]}
+        rules={[{ required, message: `${title} is required.` }]}
       >
-        <Input ref={inputRef} onPressEnter={save} onBlur={save} size='small' />
+        {editType === 'dateRange' ? (
+          <RangePicker
+            ref={inputRef}
+            size="small"
+            onBlur={save}
+            onChange={save}
+            autoFocus
+            defaultOpen
+          />
+        ) : (
+          <Input ref={inputRef} onPressEnter={save} onBlur={save} size='small' />
+        )}
       </Form.Item>
     ) : (
       <div
         className="group editable-cell-value-wrap relative w-full"
         style={{ paddingInlineEnd: 24 }}
       >
-        <span className='hover:text-[#3250eb] cursor-pointer' onClick={dataIndex === 'name' ? () => navigate(`/space/${spaceId}/${workItemId}/${record.id}/detail`) : undefined}>{children}</span>
+        <span className='hover:text-[#3250eb] cursor-pointer' onClick={dataIndex === SystemFieldId.NAME ? () => navigate(`/space/${spaceId}/${workItemId}/${record.id}/detail`) : undefined}>{children}</span>
         <div className='!absolute right-0 top-0 group-hover:block hidden'>
           <Button icon={<EditOutlined />} onClick={(e) => (e.preventDefault(), toggleEdit())} size='small' />
         </div>
@@ -382,14 +405,14 @@ const EditableCell: React.FC<React.PropsWithChildren<EditableCellProps>> = ({
   return <td {...restProps}>{childNode}</td>;
 };
 const components = {
-    body: {
-      row: EditableRow,
-      cell: EditableCell,
-    },
+  body: {
+    row: EditableRow,
+    cell: EditableCell,
+  },
 };
-  
+
 function WorkItemList() {
-  const { workItemId, spaceId } = useParams<{ workItemId: string; spaceId: string }>();
+  const { workItemId } = useParams<{ workItemId: string }>();
   const [dataSource, setDataSource] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -436,16 +459,34 @@ function WorkItemList() {
     });
   };
 
-  const handleSave = (row: any) => {
-    // TODO: 实现保存逻辑
-    const newData = [...dataSource];
-    const index = newData.findIndex((item) => row.id === item.id);
-    const item = newData[index];
-    newData.splice(index, 1, {
-      ...item,
-      ...row,
-    });
-    setDataSource(newData);
+  const handleSave = async (row: any) => {
+    try {
+      const index = dataSource.findIndex((item) => row.id === item.id);
+
+      // 构建 fieldStatusList
+      // 我们需要从 row 中提取所有非系统字段
+      const systemKeys = ['id', 'wid', 'workflowType', 'createdAt', 'updatedAt', 'creator', 'fieldStatusList', 'owner', 'createdBy', 'currentNode', 'type'];
+
+      const fieldStatusList = Object.keys(row)
+        .filter(key => !systemKeys.includes(key))
+        .map(key => ({
+          fieldId: key,
+          value: row[key]
+        }));
+
+      await put(`/tasks/${row.id}`, {
+        workflowType: row.workflowType,
+        fieldStatusList,
+      });
+
+      const newData = [...dataSource];
+      newData.splice(index, 1, row);
+      setDataSource(newData);
+      message.success('保存成功');
+    } catch (e) {
+      console.error('Failed to save task', e);
+      message.error('保存失败');
+    }
   };
 
   const columns = defaultColumns.map((col) => {
@@ -460,6 +501,8 @@ function WorkItemList() {
         dataIndex: col.dataIndex,
         title: col.title,
         handleSave,
+        editType: (col as any).editType,
+        required: (col as any).required,
       }),
     };
   });

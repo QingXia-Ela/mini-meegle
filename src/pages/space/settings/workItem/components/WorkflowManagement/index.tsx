@@ -86,7 +86,7 @@ const WorkflowManagement: React.FC<WorkflowManagementProps> = ({ workItemId }) =
     }
   };
 
-  const handleDetailUpdate = async (id: number, values: { name: string; nodesDataRaw?: string }) => {
+  const handleDetailUpdate = async (id: number, values: { name: string; nodesDataRaw?: string; eventsDataRaw?: string; rolesDataRaw?: string }) => {
     try {
       await apiUpdateWorkflowType(id, values);
       await fetchWorkflows();

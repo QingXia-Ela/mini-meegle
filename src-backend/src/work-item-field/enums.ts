@@ -18,6 +18,8 @@ export enum SystemFieldId {
   CREATOR = 'creator',
   IN_PROGRESS_NODE = 'inProgressNode',
   WORKFLOW_TYPE = 'workflowType',
+  STATUS = 'status',
+  SCHEDULE = 'schedule',
 }
 
 export enum RequireFieldId {

@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useMemo } from 'react';
 import { Button, Form, Input, Popconfirm, message, Tabs, ConfigProvider, Select } from 'antd';
 import { ArrowLeftOutlined, ExclamationCircleOutlined, DeleteOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import type { WorkflowType } from '../../api';
+import { apiGetWorkItemFields, apiGetWorkItemRoles } from '../../api';
 import { ProcessViewWithEditMode, type ProcessViewWithEditModeRef } from '@/components/ProcessView';
 import DEFAULT_MAP from '@/components/ProcessView/exampleMap';
 import { addEdge, addNodeAfterSpecifyNode, deleteEdge, deleteNode } from '@/components/ProcessView/utils';
@@ -12,8 +13,20 @@ import { generateId } from '@/utils/generateId';
 interface WorkflowDetailProps {
   workflow: WorkflowType;
   onBack: () => void;
-  onUpdate: (id: number, values: { name: string; nodesDataRaw?: string }) => Promise<void>;
+  onUpdate: (id: number, values: { name: string; nodesDataRaw?: string; eventsDataRaw?: string; rolesDataRaw?: string }) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+}
+
+interface WorkflowNodeEvent {
+  /** node id */
+  [key: string]: {
+    onReach: Array<{ type: 'status_transition', to: /** status option id */ string }>;
+    onComplete: Array<{ type: 'status_transition', to: /** status option id */ string }>;
+  }
+}
+
+interface WorkflowNodeRole {
+  [key: string]: Array<{ id: string; name: string }>;
 }
 
 const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
@@ -29,21 +42,46 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
   const [processNodes, setProcessNodes] = useState<ProcessNodeType[]>(
     workflow.nodesData || Object.values(DEFAULT_MAP)
   );
+  const [eventsData, setEventsData] = useState<WorkflowNodeEvent>(
+    workflow.eventsData || {}
+  );
+  const [rolesData, setRolesData] = useState<WorkflowNodeRole>(
+    workflow.rolesData || {}
+  );
+  const [statusOptions, setStatusOptions] = useState<Array<{ id: string; label: string; color: string }>>([]);
+  const [allRoles, setAllRoles] = useState<Array<{ id: string; name: string }>>([]);
+
   const [selectedNodeId, setSelectedNodeId] = useState<ProcessNodeIdType | null>(null);
   const processViewWithEditModeRef = useRef<ProcessViewWithEditModeRef | null>(null);
 
-  const selectedNode = React.useMemo(() =>
+  const selectedNode = useMemo(() =>
     processNodes.find(n => n.id === selectedNodeId),
     [processNodes, selectedNodeId]
   );
 
   React.useEffect(() => {
+    // Fetch status options
+    apiGetWorkItemFields(workflow.wid).then(fields => {
+      const statusField = fields.find(f => f.id === 'status');
+      if (statusField && statusField.jsonConfig?.options) {
+        setStatusOptions(statusField.jsonConfig.options);
+      }
+    });
+
+    // Fetch roles
+    apiGetWorkItemRoles(workflow.wid).then(roles => {
+      setAllRoles(roles);
+    });
+  }, [workflow.wid]);
+
+  React.useEffect(() => {
     if (selectedNode) {
       sidebarForm.setFieldsValue({
         name: selectedNode.name,
+        roleIds: (rolesData[selectedNode.id] || []).map(r => r.id),
       });
     }
-  }, [selectedNodeId, sidebarForm, selectedNode]);
+  }, [selectedNodeId, sidebarForm, selectedNode, rolesData]);
 
   const tabs = [
     { key: 'info', label: '基本信息' },
@@ -56,11 +94,61 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
       await onUpdate(workflow.id, {
         ...values,
         nodesDataRaw: JSON.stringify(processNodes),
+        eventsDataRaw: JSON.stringify(eventsData),
+        rolesDataRaw: JSON.stringify(rolesData),
       });
       message.success('保存成功');
     } catch (error: unknown) {
       console.error('Save failed:', error);
     }
+  };
+
+  const handleAddEvent = (nodeId: ProcessNodeIdType, eventType: 'onReach' | 'onComplete') => {
+    setEventsData(prev => {
+      const nodeEvents = prev[nodeId] || { onReach: [], onComplete: [] };
+      return {
+        ...prev,
+        [nodeId]: {
+          ...nodeEvents,
+          [eventType]: [
+            ...nodeEvents[eventType],
+            { type: 'status_transition', to: statusOptions[0]?.id || '' }
+          ]
+        }
+      };
+    });
+  };
+
+  const handleDeleteEvent = (nodeId: ProcessNodeIdType, eventType: 'onReach' | 'onComplete', index: number) => {
+    setEventsData(prev => {
+      const nodeEvents = prev[nodeId];
+      if (!nodeEvents) return prev;
+      const newEvents = [...nodeEvents[eventType]];
+      newEvents.splice(index, 1);
+      return {
+        ...prev,
+        [nodeId]: {
+          ...nodeEvents,
+          [eventType]: newEvents
+        }
+      };
+    });
+  };
+
+  const handleUpdateEvent = (nodeId: ProcessNodeIdType, eventType: 'onReach' | 'onComplete', index: number, to: string) => {
+    setEventsData(prev => {
+      const nodeEvents = prev[nodeId];
+      if (!nodeEvents) return prev;
+      const newEvents = [...nodeEvents[eventType]];
+      newEvents[index] = { ...newEvents[index], to };
+      return {
+        ...prev,
+        [nodeId]: {
+          ...nodeEvents,
+          [eventType]: newEvents
+        }
+      };
+    });
   };
 
   const handleDelete = async () => {
@@ -107,6 +195,17 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
         onDeleteNode={(id) => {
           const nodes = deleteNode(processNodes, id);
           setProcessNodes(nodes);
+          // 清理关联数据
+          setEventsData(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          setRolesData(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
           if (selectedNodeId === id) {
             setSelectedNodeId(null);
           }
@@ -235,6 +334,17 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                     onConfirm={() => {
                       const nodes = deleteNode(processNodes, selectedNode.id);
                       setProcessNodes(nodes);
+                      // 清理关联数据
+                      setEventsData(prev => {
+                        const next = { ...prev };
+                        delete next[selectedNode.id];
+                        return next;
+                      });
+                      setRolesData(prev => {
+                        const next = { ...prev };
+                        delete next[selectedNode.id];
+                        return next;
+                      });
                       setSelectedNodeId(null);
                     }}
                     okText="确定"
@@ -305,6 +415,16 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                                 if (changedValues.name.trim()) {
                                   handleNodeUpdate(selectedNodeId, changedValues);
                                 }
+                              } else if (changedValues.roleIds !== undefined) {
+                                // 处理角色变更
+                                const selectedRoles = allRoles
+                                  .filter(r => changedValues.roleIds.includes(r.id))
+                                  .map(r => ({ id: r.id, name: r.name }));
+
+                                setRolesData(prev => ({
+                                  ...prev,
+                                  [selectedNodeId]: selectedRoles
+                                }));
                               } else {
                                 handleNodeUpdate(selectedNodeId, changedValues);
                               }
@@ -324,6 +444,23 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                           </Form.Item>
 
                           <Form.Item
+                            label={<span className="text-[#8c8c8c] text-xs">角色关联</span>}
+                            name="roleIds"
+                            className="mb-4"
+                          >
+                            <Select
+                              mode="multiple"
+                              placeholder="请选择关联角色"
+                              className="w-full"
+                              options={allRoles.map(role => ({
+                                label: role.name,
+                                value: role.id
+                              }))}
+                              allowClear
+                            />
+                          </Form.Item>
+
+                          <Form.Item
                             label={<span className="text-[#8c8c8c] text-xs">节点 ID</span>}
                           >
                             <div className="text-sm text-[#262626] font-mono bg-[#f5f5f5] px-2 py-1 rounded">
@@ -338,46 +475,54 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                         {/* Node Arrival Events */}
                         <div>
                           <div className="text-sm font-medium text-[#262626] mb-3">节点到达事件</div>
-                          <div className="bg-white border border-[#f0f0f0] rounded-lg p-4 mb-3 relative">
-                            <div className="flex justify-between items-center mb-4">
-                              <span className="text-sm font-medium text-[#262626]">到达事件 (1)</span>
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<DeleteOutlined className="text-[#8c8c8c]" />}
-                              />
-                            </div>
+                          {(eventsData[selectedNode.id]?.onReach || []).map((event, index) => (
+                            <div key={`onReach-${index}`} className="bg-white border border-[#f0f0f0] rounded-lg p-4 mb-3 relative">
+                              <div className="flex justify-between items-center mb-4">
+                                <span className="text-sm font-medium text-[#262626]">到达事件 ({index + 1})</span>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DeleteOutlined className="text-[#8c8c8c]" />}
+                                  onClick={() => handleDeleteEvent(selectedNode.id, 'onReach', index)}
+                                />
+                              </div>
 
-                            <div className="space-y-4">
-                              <div>
-                                <div className="flex items-center gap-1 mb-2 text-[#595959] text-xs">
-                                  <span>事件类型</span>
-                                  <InfoCircleOutlined className="text-[#bfbfbf]" />
+                              <div className="space-y-4">
+                                <div>
+                                  <div className="flex items-center gap-1 mb-2 text-[#595959] text-xs">
+                                    <span>事件类型</span>
+                                    <InfoCircleOutlined className="text-[#bfbfbf]" />
+                                  </div>
+                                  <Select
+                                    className="w-full h-9 bg-[#f5f5f5] rounded-lg"
+                                    value={event.type}
+                                    variant="borderless"
+                                    options={[{ value: 'status_transition', label: '状态流转' }]}
+                                  />
                                 </div>
-                                <Select
-                                  className="w-full h-9 bg-[#f5f5f5] rounded-lg"
-                                  defaultValue="status_transition"
-                                  variant="borderless"
-                                  options={[{ value: 'status_transition', label: '状态流转' }]}
-                                />
-                              </div>
 
-                              <div>
-                                <div className="mb-2 text-[#595959] text-xs">状态流转为</div>
-                                <Select
-                                  className="w-full h-9 bg-[#f5f5f5] rounded-lg"
-                                  defaultValue="start"
-                                  variant="borderless"
-                                  options={[{ value: 'start', label: '开始' }]}
-                                />
+                                <div>
+                                  <div className="mb-2 text-[#595959] text-xs">状态流转为</div>
+                                  <Select
+                                    className="w-full h-9 bg-[#f5f5f5] rounded-lg"
+                                    value={event.to}
+                                    variant="borderless"
+                                    onChange={(value) => handleUpdateEvent(selectedNode.id, 'onReach', index, value)}
+                                    options={statusOptions.map(opt => ({
+                                      value: opt.id,
+                                      label: opt.label
+                                    }))}
+                                  />
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          ))}
 
                           <Button
                             block
                             icon={<PlusOutlined />}
                             className="h-9 border-[#f0f0f0] text-blue-600 hover:text-blue-700 hover:border-blue-600 text-xs"
+                            onClick={() => handleAddEvent(selectedNode.id, 'onReach')}
                           >
                             添加到达事件
                           </Button>
@@ -386,10 +531,53 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                         {/* Node Completion Events */}
                         <div>
                           <div className="text-sm font-medium text-[#262626] mb-3">节点完成事件</div>
+                          {(eventsData[selectedNode.id]?.onComplete || []).map((event, index) => (
+                            <div key={`onComplete-${index}`} className="bg-white border border-[#f0f0f0] rounded-lg p-4 mb-3 relative">
+                              <div className="flex justify-between items-center mb-4">
+                                <span className="text-sm font-medium text-[#262626]">完成事件 ({index + 1})</span>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DeleteOutlined className="text-[#8c8c8c]" />}
+                                  onClick={() => handleDeleteEvent(selectedNode.id, 'onComplete', index)}
+                                />
+                              </div>
+
+                              <div className="space-y-4">
+                                <div>
+                                  <div className="flex items-center gap-1 mb-2 text-[#595959] text-xs">
+                                    <span>事件类型</span>
+                                    <InfoCircleOutlined className="text-[#bfbfbf]" />
+                                  </div>
+                                  <Select
+                                    className="w-full h-9 bg-[#f5f5f5] rounded-lg"
+                                    value={event.type}
+                                    variant="borderless"
+                                    options={[{ value: 'status_transition', label: '状态流转' }]}
+                                  />
+                                </div>
+
+                                <div>
+                                  <div className="mb-2 text-[#595959] text-xs">状态流转为</div>
+                                  <Select
+                                    className="w-full h-9 bg-[#f5f5f5] rounded-lg"
+                                    value={event.to}
+                                    variant="borderless"
+                                    onChange={(value) => handleUpdateEvent(selectedNode.id, 'onComplete', index, value)}
+                                    options={statusOptions.map(opt => ({
+                                      value: opt.id,
+                                      label: opt.label
+                                    }))}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                           <Button
                             block
                             icon={<PlusOutlined />}
                             className="h-9 border-[#f0f0f0] text-blue-600 hover:text-blue-700 hover:border-blue-600 text-xs"
+                            onClick={() => handleAddEvent(selectedNode.id, 'onComplete')}
                           >
                             添加完成事件
                           </Button>

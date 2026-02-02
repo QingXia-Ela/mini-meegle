@@ -15,6 +15,8 @@ const X_LAYER_WIDTH = 200
 const Y_NODE_HEIGHT = 50
 const Y_NODE_HALF_HEIGHT = Y_NODE_HEIGHT / 2
 
+export { X_LAYER_WIDTH, Y_NODE_HEIGHT }
+
 export function deleteNode(originalNodes: ProcessNodeType[], nodeId: ProcessNodeIdType) {
   // 深拷贝原始节点数组
   const nodes = cloneDeep(originalNodes)
@@ -921,4 +923,80 @@ export function getPrecomputedCurvatureStyle(
     'control-point-distances': [0, 0],
     'control-point-weights': [0.5, 0.5]
   }
+}
+
+/**
+ * 计算流程图的 pan 边界限制
+ * @param nodes 流程节点数组
+ * @returns 包含最大横向层级数和最大纵向节点数的对象
+ */
+export function calculatePanBounds(nodes: ProcessNodeType[]): {
+  maxLayerCount: number;
+  maxNodesInLayer: number;
+} {
+  if (nodes.length === 0) {
+    return { maxLayerCount: 0, maxNodesInLayer: 0 }
+  }
+
+  // 构造 id -> node 映射
+  const nodeMap: Record<string, ProcessNodeType> = {}
+  nodes.forEach((n) => { nodeMap[String(n.id)] = n })
+
+  // 记录每个节点的层数
+  const nodeLayerMap: Record<string, number> = {}
+  const nodeYAxisOrderMap: Record<number, string[]> = {}
+
+  // 找到起始节点
+  const startIds: string[] = nodes.filter(n => !n.prevNodes || n.prevNodes.length === 0).map(n => String(n.id))
+  if (startIds.length === 0) {
+    nodes.forEach(n => startIds.push(String(n.id)))
+  }
+
+  function dfs(id: string, layer: number) {
+    const prevLayer = nodeLayerMap[id]
+    if (prevLayer !== undefined) {
+      if (layer > prevLayer) {
+        const arr = nodeYAxisOrderMap[prevLayer]
+        if (arr) {
+          const idx = arr.indexOf(id)
+          if (idx >= 0) arr.splice(idx, 1)
+        }
+        nodeLayerMap[id] = layer
+      } else {
+        return
+      }
+    } else {
+      nodeLayerMap[id] = layer
+    }
+
+    if (!nodeYAxisOrderMap[layer]) nodeYAxisOrderMap[layer] = []
+    nodeYAxisOrderMap[layer].push(id)
+
+    const node = nodeMap[id]
+    if (!node || !node.nextNodes) return
+    for (const nxt of node.nextNodes) {
+      dfs(String(nxt), layer + 1)
+    }
+  }
+
+  // 从所有起点开始深度优先遍历
+  for (const sid of startIds) dfs(sid, 0)
+  // 确保每个节点都被访问
+  for (const n of nodes) {
+    const id = String(n.id)
+    if (nodeLayerMap[id] === undefined) dfs(id, 0)
+  }
+
+  // 计算最大层数
+  const maxLayerCount = Math.max(...Object.values(nodeLayerMap), 0) + 1
+
+  // 计算每层最多的节点数
+  let maxNodesInLayer = 0
+  Object.values(nodeYAxisOrderMap).forEach(layerNodes => {
+    if (layerNodes.length > maxNodesInLayer) {
+      maxNodesInLayer = layerNodes.length
+    }
+  })
+
+  return { maxLayerCount, maxNodesInLayer }
 }

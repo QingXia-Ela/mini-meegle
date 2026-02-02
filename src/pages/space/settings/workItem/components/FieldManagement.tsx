@@ -426,7 +426,7 @@ const FieldManagement: React.FC<FieldManagementProps> = ({ workItemId }) => {
               </section>
 
               {/* 配置选项 */}
-              {(selectedField.type === 'select' || selectedField.type === 'multiSelect' ) && (
+              {(selectedField.type === 'select' || selectedField.type === 'multiSelect') && (
                 <div className="space-y-4">
                   <div>
                     <div className="text-xs text-[#8c8c8c] mb-2 flex items-center">
@@ -643,8 +643,8 @@ const FieldManagement: React.FC<FieldManagementProps> = ({ workItemId }) => {
             label={<span className="text-[#595959] text-xs font-medium">字段类型</span>}
             rules={[{ required: true, message: '请选择字段类型' }]}
           >
-            <Select 
-              className="h-10 w-full rounded-lg" 
+            <Select
+              className="h-10 w-full rounded-lg"
               placeholder="请选择字段类型"
               variant="borderless"
               style={{ backgroundColor: '#f5f5f5' }}

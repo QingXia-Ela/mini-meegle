@@ -3,7 +3,7 @@ import type { ProcessNodeType } from './types';
 // 一个开始节点，一个推进中节点，一个结束节点
 const DEFAULT_MAP: Record<string, ProcessNodeType> = {
   'start': {
-    status: 'pending',
+    status: 'in_progress',
     name: '开始',
     canUndo: false,
     canDelete: false,

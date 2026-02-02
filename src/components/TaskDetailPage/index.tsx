@@ -1,10 +1,11 @@
 import { CloseOutlined, HomeFilled, StarFilled, StarOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
-import { useEffect, useState } from 'react';
+import { Button, Spin } from 'antd';
+import { useCallback, useMemo, useState } from 'react';
 import ProcessView from '../ProcessView';
-import { BasicMap, TestMap } from '../ProcessView/exampleMap';
+import { TestMap } from '../ProcessView/exampleMap';
 import ProcessBottomInfo from './components/ProcessBottomInfo';
-import { del, get, post } from '@/api/request';
+import type { ProcessNodeType } from '../ProcessView/types';
+import { useTaskDetailData } from './hooks/useTaskDetailData';
 
 interface TaskDetailPageProps {
   spaceId: string;
@@ -13,48 +14,46 @@ interface TaskDetailPageProps {
   onClose?: () => void;
 }
 
-
 function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPageProps) {
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<ProcessNodeType | null>(null);
+  const {
+    loading,
+    isFavorited,
+    favoriteLoading,
+    workflowNodes,
+    taskNodeStatusList,
+    nodeStatusMap,
+    refresh,
+    toggleFavorite,
+  } = useTaskDetailData(taskId);
 
-  useEffect(() => {
-    let active = true;
-    const fetchFavoriteState = async () => {
-      try {
-        const res = await get<{ favorited: boolean }>(
-          `/task-favorites/${taskId}/status`,
-          { showError: false },
-        );
-        if (!active) return;
-        setIsFavorited(Boolean(res?.favorited));
-      } catch {
-        if (active) {
-          setIsFavorited(false);
-        }
-      }
-    };
-    fetchFavoriteState();
-    return () => {
-      active = false;
-    };
-  }, [taskId]);
+  const displayNodes = useMemo(() => {
+    const sourceNodes = workflowNodes.length > 0 ? workflowNodes : Object.values(TestMap);
+    return sourceNodes.map((node) => {
+      const baseStatus = node.status || 'pending';
+      const matched = nodeStatusMap.get(String(node.id));
+      if (matched) return { ...node, status: matched.node_status || baseStatus };
+      return { ...node, status: baseStatus };
+    });
+  }, [workflowNodes, nodeStatusMap]);
 
-  const handleToggleFavorite = async () => {
-    if (favoriteLoading) return;
-    setFavoriteLoading(true);
-    try {
-      if (isFavorited) {
-        await del(`/task-favorites/${taskId}`, { showError: false });
-        setIsFavorited(false);
-      } else {
-        await post('/task-favorites', { tid: Number(taskId) }, { showError: false });
-        setIsFavorited(true);
-      }
-    } finally {
-      setFavoriteLoading(false);
-    }
-  };
+  const currentNode = useMemo(() => {
+    if (selectedNode) return selectedNode;
+    if (displayNodes.length === 0) return null;
+    const preferredId = taskNodeStatusList[0]?.nodeId;
+    return preferredId
+      ? displayNodes.find((node) => String(node.id) === String(preferredId)) || displayNodes[0]
+      : displayNodes[0];
+  }, [displayNodes, selectedNode, taskNodeStatusList]);
+
+  const currentNodeStatus = useMemo(() => {
+    if (!currentNode) return null;
+    return nodeStatusMap.get(String(currentNode.id)) || null;
+  }, [currentNode, nodeStatusMap]);
+
+  const onNodeClick = useCallback((node: ProcessNodeType) => {
+    setSelectedNode(node);
+  }, []);
   return (
     <div className="w-full h-full flex flex-col relative pb-20">
       <header className="flex py-3 px-5 w-full bg-white border-b border-[#cacbcd] items-center justify-between">
@@ -66,7 +65,7 @@ function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPage
         </div>
         <div className='flex items-center gap-2'>
           <Button
-            onClick={handleToggleFavorite}
+            onClick={toggleFavorite}
             loading={favoriteLoading}
             icon={isFavorited ? <StarFilled style={{ color: '#f5a623' }} /> : <StarOutlined style={{ color: '#000' }} />}
           >
@@ -78,13 +77,27 @@ function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPage
         </div>
       </header>
       <div className='flex-1 overflow-auto'>
-        <div className='flex flex-col'>
-          {/* <ProcessMemberSelector /> */}
-          <div className="h-104 w-full">
-            <ProcessView nodes={Object.values(TestMap)} />
+        <Spin spinning={loading}>
+          <div className='flex flex-col'>
+            {/* <ProcessMemberSelector /> */}
+            <div className="h-104 w-full">
+              <ProcessView
+                nodes={workflowNodes || []}
+                onNodeClick={onNodeClick}
+              />
+            </div>
           </div>
-          <ProcessBottomInfo spaceId={spaceId} workItemId={workItemId} taskId={taskId} />
-        </div>
+        </Spin>
+        <ProcessBottomInfo
+          spaceId={spaceId}
+          workItemId={workItemId}
+          taskId={taskId}
+          currentNode={currentNode}
+          taskNodeStatus={currentNodeStatus}
+          workflowNodes={displayNodes}
+          taskNodeStatusList={taskNodeStatusList}
+          onRefreshNodes={refresh}
+        />
       </div>
     </div>
   );

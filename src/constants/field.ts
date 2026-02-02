@@ -16,6 +16,8 @@ export const SystemFieldId = {
   NAME: 'name',
   DESCRIPTION: 'description',
   WORKFLOW_TYPE: 'workflowType',
+  STATUS: 'status',
+  SCHEDULE: 'schedule',
 } as const;
 
 export const ReadonlyFieldId = {
