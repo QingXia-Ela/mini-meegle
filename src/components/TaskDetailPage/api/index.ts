@@ -12,16 +12,19 @@ export const fetchTaskNodeStatuses = (taskId: string) =>
     showError: false,
   });
 
-export const fetchFavoriteStatus = (taskId: string) =>
-  get<{ favorited: boolean }>(`/task-favorites/${taskId}/status`, {
+export const fetchFavoriteStatus = (taskId: string, uid?: number) =>
+  get<{ favorited: boolean }>(
+    `/task-favorites/${taskId}/status${uid ? `?uid=${uid}` : ''}`,
+    {
     showError: false,
-  });
+    },
+  );
 
-export const addTaskFavorite = (taskId: string) =>
-  post('/task-favorites', { tid: Number(taskId) }, { showError: false });
+export const addTaskFavorite = (taskId: string, uid?: number) =>
+  post('/task-favorites', { tid: Number(taskId), uid }, { showError: false });
 
-export const removeTaskFavorite = (taskId: string) =>
-  del(`/task-favorites/${taskId}`, { showError: false });
+export const removeTaskFavorite = (taskId: string, uid?: number) =>
+  del(`/task-favorites/${taskId}${uid ? `?uid=${uid}` : ''}`, { showError: false });
 
 export const transitionNodeStatus = (
   taskId: string,

@@ -583,18 +583,20 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
       ]
     })
 
+
     cytoRef.current.on('pan', () => {
       if (!cytoRef.current) return
+      // if (triggerPanEvent) return
       const cy = cytoRef.current
       const currentPan = cy.pan()
       const newPan = { ...currentPan }
-      let needUpdate = false
+      const needUpdate = false
       console.log(newPan.y)
 
       // 限制 x 轴 pan
       if (newPan.x > maxPanX - PanBasicX * 3 || newPan.x < -maxPanX + PanBasicX * 3) {
         newPan.x = newPan.x > 0 ? maxPanX - PanBasicX * 3 : -maxPanX + PanBasicX * 3
-        needUpdate = true
+        // needUpdate = true
       }
 
       // 限制 y 轴 pan
@@ -602,7 +604,7 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
       const PanYBasicMove = maxPanY * 2
       if ((newPan.y > PanYBasicMove + PanBasicY) || newPan.y < PanYBasicMove - PanBasicY) {
         newPan.y = newPan.y > PanYBasicMove ? PanYBasicMove + PanBasicY : PanYBasicMove - PanBasicY
-        needUpdate = true
+        // needUpdate = true
       }
 
       if (needUpdate) {

@@ -1,13 +1,14 @@
-import { EditOutlined, HomeFilled, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, HomeFilled, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router';
 import WorkItemStatusView from './components/WorkItemStatusView';
-import { Button, Form, Input, Table, Tabs, type TabsProps, type FormInstance, Select, DatePicker, Modal, message, InputNumber, Switch } from 'antd';
+import { Button, Form, Input, Table, Tabs, type TabsProps, type FormInstance, Select, DatePicker, Modal, message, InputNumber, Switch, Tag } from 'antd';
 import MeegleCardFrame from '@/components/workItem/MeegleCardFrame';
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import { get, post, put } from '@/api/request';
 import MemberSelect from '@/components/MemberSelect';
 import dayjs from 'dayjs';
 import { FieldType, SystemFieldId } from '@/constants/field';
+import UserProfileCard from '@/components/UserProfileCard';
 
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
@@ -24,6 +25,10 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
   const [fields, setFields] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [workflowTypes, setWorkflowTypes] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedRoles, setSelectedRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [roleMembers, setRoleMembers] = useState<Record<string, string[]>>({});
+  const [addRoleId, setAddRoleId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   const fetchFields = useCallback(async () => {
@@ -53,13 +58,32 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
     }
   }, [workItemId]);
 
+  const fetchRoles = useCallback(async () => {
+    try {
+      const data = await get(`/workItems/${workItemId}/roles`);
+      const normalized = (data || []).map((role: any) => ({
+        id: role.id?.toString() ?? '',
+        name: role.name ?? '',
+      })).filter((role: any) => role.id);
+      setRoles(normalized);
+      setSelectedRoles(normalized);
+    } catch (e) {
+      console.error('Failed to fetch roles', e);
+      setRoles([]);
+      setSelectedRoles([]);
+    }
+  }, [workItemId]);
+
   useEffect(() => {
     if (visible) {
       fetchFields();
       fetchUsers();
       fetchWorkflowTypes();
+      fetchRoles();
+      setRoleMembers({});
+      setAddRoleId(undefined);
     }
-  }, [visible, fetchFields, fetchUsers, fetchWorkflowTypes]);
+  }, [visible, fetchFields, fetchUsers, fetchWorkflowTypes, fetchRoles]);
 
   const handleOk = async () => {
     try {
@@ -82,11 +106,37 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
           };
         });
 
-      await post('/tasks', {
+      const createdTask = await post('/tasks', {
         wid: workItemId,
         workflowType,
         fieldStatusList,
       });
+
+      const taskId = createdTask?.id;
+      if (taskId && workflowType) {
+        const selectedWorkflow = workflowTypes.find((wt) => String(wt.id) === String(workflowType));
+        const rolesData = selectedWorkflow?.rolesData || {};
+        const updates: Array<Promise<any>> = [];
+
+        Object.entries(rolesData).forEach(([nodeId, roleList]) => {
+          if (!Array.isArray(roleList) || roleList.length === 0) return;
+          const roleId = roleList[0]?.id?.toString();
+          if (!roleId) return;
+          const members = roleMembers[roleId] || [];
+          const memberId = members[0];
+          const maintainerId = memberId ? Number(memberId) : NaN;
+          if (!Number.isFinite(maintainerId)) return;
+          updates.push(
+            put(`/task-node-status/${taskId}/nodes/${nodeId}`, {
+              maintainerId,
+            })
+          );
+        });
+
+        if (updates.length > 0) {
+          await Promise.allSettled(updates);
+        }
+      }
 
       message.success('创建成功');
       form.resetFields();
@@ -96,6 +146,29 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRoleMembersChange = (roleId: string, members: string[]) => {
+    setRoleMembers((prev) => ({
+      ...prev,
+      [roleId]: members.slice(-1),
+    }));
+  };
+
+  const handleRemoveRole = (roleId: string) => {
+    setSelectedRoles((prev) => prev.filter((role) => role.id !== roleId));
+    setRoleMembers((prev) => {
+      const next = { ...prev };
+      delete next[roleId];
+      return next;
+    });
+  };
+
+  const handleAddRole = (roleId: string) => {
+    const role = roles.find((item) => item.id === roleId);
+    if (!role) return;
+    setSelectedRoles((prev) => (prev.some((item) => item.id === roleId) ? prev : [...prev, role]));
+    setAddRoleId(undefined);
   };
 
   const renderFieldInput = (field: any) => {
@@ -177,6 +250,8 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
     f.systemType === 'custom'
   );
 
+  const availableRoles = roles.filter((role) => !selectedRoles.some((selected) => selected.id === role.id));
+
   return (
     <Modal
       title="新建任务"
@@ -198,6 +273,42 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onCancel, on
             {renderFieldInput(field)}
           </Form.Item>
         ))}
+        <div className="mt-4">
+          <div className="mb-2 text-sm text-gray-500">角色与人员</div>
+          <div className="space-y-2">
+            {selectedRoles.map((role) => (
+              <div key={role.id} className="flex items-center gap-3">
+                <div className="w-32 text-sm text-gray-700">{role.name}</div>
+                <div className="flex-1">
+                  <MemberSelect
+                    options={users.map(u => ({ id: u.id.toString(), name: u.name, avatar: u.avatar }))}
+                    placeholder="待填"
+                    value={roleMembers[role.id] || []}
+                    onChange={(value) => handleRoleMembersChange(role.id, value)}
+                  />
+                </div>
+                <Button
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleRemoveRole(role.id)}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Select
+              placeholder="添加角色"
+              value={addRoleId}
+              onChange={handleAddRole}
+              style={{ width: 200 }}
+              disabled={availableRoles.length === 0}
+              options={availableRoles.map((role) => ({
+                label: role.name,
+                value: role.id,
+              }))}
+            />
+          </div>
+        </div>
       </Form>
     </Modal>
   );
@@ -226,7 +337,7 @@ const items: TabsProps['items'] = [
   }
 ];
 
-const defaultColumns = [
+const buildDefaultColumns = (statusOptions: Array<{ id: string; label: string; color?: string }>) => [
   {
     title: '待办事项',
     dataIndex: SystemFieldId.NAME,
@@ -240,13 +351,13 @@ const defaultColumns = [
     dataIndex: 'owner',
     key: 'owner',
   },
-  {
-    title: '优先级',
-    dataIndex: 'priority',
-    key: 'priority',
-    editable: true,
-    editType: 'select',
-  },
+  // {
+  //   title: '优先级',
+  //   dataIndex: 'priority',
+  //   key: 'priority',
+  //   editable: true,
+  //   editType: 'select',
+  // },
   {
     title: '创建时间',
     dataIndex: 'createdAt',
@@ -255,8 +366,9 @@ const defaultColumns = [
   },
   {
     title: '创建人',
-    dataIndex: 'createdBy',
-    key: 'createdBy',
+    dataIndex: SystemFieldId.CREATOR,
+    key: 'creator',
+    render: (value: string | number | null | undefined) => <UserProfileCard userId={value} />,
   },
   {
     title: '排期',
@@ -275,15 +387,22 @@ const defaultColumns = [
       return value;
     }
   },
+  // {
+  //   title: '进行中节点',
+  //   dataIndex: 'currentNode',
+  //   key: 'currentNode',
+  // },
   {
-    title: '进行中节点',
-    dataIndex: 'currentNode',
-    key: 'currentNode',
-  },
-  {
-    title: '需求类型',
-    dataIndex: 'type',
-    key: 'type',
+    title: '状态',
+    dataIndex: 'status',
+    key: 'status',
+    render: (value: any) => {
+      const status = statusOptions.find(option => option.id === value);
+      if (!status) {
+        return <span className="text-gray-400">-</span>;
+      }
+      return <Tag style={{ backgroundColor: status.color }}>{status.label}</Tag>;
+    },
   },
   {
     title: '描述',
@@ -411,11 +530,16 @@ const components = {
   },
 };
 
-function WorkItemList() {
+type WorkItemListHandle = {
+  refresh: () => void;
+};
+
+const WorkItemList = forwardRef<WorkItemListHandle, { queryType: string }>(({ queryType }, ref) => {
   const { workItemId } = useParams<{ workItemId: string }>();
   const [dataSource, setDataSource] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [statusOptions, setStatusOptions] = useState<Array<{ id: string; label: string; color?: string }>>([]);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -426,7 +550,7 @@ function WorkItemList() {
     setLoading(true);
     try {
       const offset = (current - 1) * pageSize;
-      const data = await get(`/tasks/workItem/${workItemId}?count=${pageSize}&offset=${offset}`);
+      const data = await get(`/tasks/workItem/${workItemId}?count=${pageSize}&offset=${offset}&type=${queryType}`);
       if (data && data.rows) {
         // 将 fieldStatusList 展开到任务对象上，方便表格显示
         const formattedRows = data.rows.map((row: any) => {
@@ -446,11 +570,32 @@ function WorkItemList() {
     } finally {
       setLoading(false);
     }
-  }, [workItemId]);
+  }, [workItemId, queryType]);
 
   useEffect(() => {
     fetchTasks(pagination.current, pagination.pageSize);
   }, [fetchTasks, pagination.current, pagination.pageSize]);
+
+  const refresh = useCallback(() => {
+    fetchTasks(pagination.current, pagination.pageSize);
+  }, [fetchTasks, pagination.current, pagination.pageSize]);
+
+  useImperativeHandle(ref, () => ({ refresh }), [refresh]);
+
+  useEffect(() => {
+    if (!workItemId) return;
+    const fetchStatusOptions = async () => {
+      try {
+        const data = await get(`/workItems/${workItemId}/fields`);
+        const statusField = (data || []).find((field: any) => field.id === SystemFieldId.STATUS);
+        setStatusOptions(statusField?.jsonConfig?.options || []);
+      } catch (e) {
+        console.error('Failed to fetch status field options', e);
+        setStatusOptions([]);
+      }
+    };
+    fetchStatusOptions();
+  }, [workItemId]);
 
   const handleTableChange = (newPagination: any) => {
     setPagination({
@@ -489,7 +634,7 @@ function WorkItemList() {
     }
   };
 
-  const columns = defaultColumns.map((col) => {
+  const columns = buildDefaultColumns(statusOptions).map((col) => {
     if (!col.editable) {
       return col;
     }
@@ -525,12 +670,16 @@ function WorkItemList() {
       components={components}
     />
   );
-}
+});
+
+WorkItemList.displayName = 'WorkItemList';
 
 function WorkItemPage() {
   const { spaceId, workItemId } = useParams<{ spaceId: string, workItemId: string }>();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [stats, setStats] = useState({ total: 0, participants: 0, myParticipated: 0 });
+  const [activeTab, setActiveTab] = useState('all');
+  const listRef = useRef<WorkItemListHandle | null>(null);
 
   const fetchStats = useCallback(async () => {
     if (!workItemId) return;
@@ -548,11 +697,10 @@ function WorkItemPage() {
     fetchStats();
   }, [fetchStats]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     fetchStats();
-    // 可以在这里添加刷新列表的逻辑，目前数据是 Mock 的
-    window.location.reload();
-  };
+    listRef.current?.refresh();
+  }, [fetchStats]);
 
   return (
     <>
@@ -579,13 +727,17 @@ function WorkItemPage() {
         ]} />
         <MeegleCardFrame className='flex-1 flex flex-col pt-0'>
           <div className='flex justify-between items-center'>
-            <Tabs defaultActiveKey="1" items={items} />;
+            <Tabs
+              activeKey={activeTab}
+              items={items}
+              onChange={(key) => setActiveTab(key)}
+            />
             <div className='flex gap-2'>
               <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
               <Button type='primary' icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>新增</Button>
             </div>
           </div>
-          <WorkItemList />
+          <WorkItemList ref={listRef} key={activeTab} queryType={activeTab} />
         </MeegleCardFrame>
       </div>
       <CreateTaskModal

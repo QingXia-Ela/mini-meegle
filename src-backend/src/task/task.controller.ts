@@ -33,11 +33,16 @@ export class TaskController {
     @Param('workItemId') workItemId: string,
     @Query('count') count: string,
     @Query('offset') offset: string,
+    @Query('type') type: string,
+    @Req() req: any,
   ) {
+    const userId = req.user?.sub;
     return this.service.findByWorkItemId(
       workItemId,
       count ? Number(count) : 10,
       offset ? Number(offset) : 0,
+      type,
+      userId,
     );
   }
 
@@ -45,6 +50,28 @@ export class TaskController {
   getStats(@Param('workItemId') workItemId: string, @Req() req: any) {
     const userId = req.user?.sub;
     return this.service.getStats(workItemId, userId);
+  }
+
+  @Get('dashboard/stats')
+  getDashboardStats(@Req() req: any) {
+    const userId = req.user?.sub;
+    return this.service.getDashboardStats(userId);
+  }
+
+  @Get('dashboard')
+  getDashboardTasks(
+    @Query('count') count: string,
+    @Query('offset') offset: string,
+    @Query('type') type: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.sub;
+    return this.service.getDashboardTasks(
+      count ? Number(count) : 6,
+      offset ? Number(offset) : 0,
+      type || 'todo',
+      userId,
+    );
   }
 
   @Get(':id')

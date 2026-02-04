@@ -27,7 +27,7 @@ const mergeNodesWithStatus = (
     return matched ? { ...node, status: matched.node_status || node.status } : node;
   });
 
-export const useTaskDetailData = (taskId: string) => {
+export const useTaskDetailData = (taskId: string, uid?: number) => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,14 +54,14 @@ export const useTaskDetailData = (taskId: string) => {
           ? mergeNodesWithStatus(workflowNodeList, statusMap)
           : workflowNodeList,
       );
-      const fav = await fetchFavoriteStatus(taskId);
+      const fav = await fetchFavoriteStatus(taskId, uid);
       setIsFavorited(Boolean(fav?.favorited));
     } catch (err) {
       console.error('Failed to fetch task detail or workflow:', err);
     } finally {
       setLoading(false);
     }
-  }, [fetchWorkflowNodes, taskId]);
+  }, [fetchWorkflowNodes, taskId, uid]);
 
   useEffect(() => {
     let active = true;
@@ -80,16 +80,16 @@ export const useTaskDetailData = (taskId: string) => {
     setFavoriteLoading(true);
     try {
       if (isFavorited) {
-        await removeTaskFavorite(taskId);
+        await removeTaskFavorite(taskId, uid);
         setIsFavorited(false);
       } else {
-        await addTaskFavorite(taskId);
+        await addTaskFavorite(taskId, uid);
         setIsFavorited(true);
       }
     } finally {
       setFavoriteLoading(false);
     }
-  }, [favoriteLoading, isFavorited, taskId]);
+  }, [favoriteLoading, isFavorited, taskId, uid]);
 
   const nodeStatusMap = useMemo(
     () => buildStatusMap(taskNodeStatusList),

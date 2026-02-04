@@ -6,4 +6,3 @@ export class CreateWorkItemFieldDto {
   type: FieldType;
   config?: string;
 }
-

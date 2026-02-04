@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Transaction } from 'sequelize';
 import { WorkItem } from './work-item.model';
 import { WorkItemSpace } from './work-item-space.model';
 import { CreateWorkItemDto } from './dto/create-work-item.dto';
@@ -17,19 +18,29 @@ export class WorkItemService {
     private workItemSpaceModel: typeof WorkItemSpace,
   ) {}
 
-  async create(dto: CreateWorkItemDto): Promise<WorkItem> {
+  async create(
+    dto: CreateWorkItemDto,
+    transaction?: Transaction,
+  ): Promise<WorkItem> {
     if (dto.id) {
-      const existing = await this.workItemModel.findByPk(dto.id);
+      const existing = await this.workItemModel.findByPk(dto.id, {
+        transaction,
+      });
       if (existing) {
         throw new ConflictException('Work item ID already exists');
       }
     }
-    const workItem = await this.workItemModel.create(dto as any);
-    // 添加到工作项-空间关系表
-    await this.workItemSpaceModel.create({
-      sid: dto.sid,
-      wid: workItem.id,
+    const workItem = await this.workItemModel.create(dto as any, {
+      transaction,
     });
+    // 添加到工作项-空间关系表
+    await this.workItemSpaceModel.create(
+      {
+        sid: dto.sid,
+        wid: workItem.id,
+      },
+      { transaction },
+    );
     return workItem;
   }
 
@@ -37,8 +48,8 @@ export class WorkItemService {
     return this.workItemModel.findAll();
   }
 
-  async findOne(id: string): Promise<WorkItem> {
-    const w = await this.workItemModel.findByPk(id);
+  async findOne(id: string, transaction?: Transaction): Promise<WorkItem> {
+    const w = await this.workItemModel.findByPk(id, { transaction });
     if (!w) throw new NotFoundException('WorkItem not found');
     return w;
   }

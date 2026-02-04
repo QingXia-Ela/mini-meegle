@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Transaction } from 'sequelize';
 import { WorkItemRole } from './work-item-role.model';
 import { CreateWorkItemRoleDto } from './dto/create-work-item-role.dto';
 import { UpdateWorkItemRoleDto } from './dto/update-work-item-role.dto';
@@ -21,12 +22,19 @@ export class WorkItemRoleService {
     });
   }
 
-  async create(wid: string, dto: CreateWorkItemRoleDto): Promise<WorkItemRole> {
-    await this.workItemService.findOne(wid); // 确保工作项存在
-    return this.workItemRoleModel.create({
-      ...dto,
-      wid,
-    });
+  async create(
+    wid: string,
+    dto: CreateWorkItemRoleDto,
+    transaction?: Transaction,
+  ): Promise<WorkItemRole> {
+    await this.workItemService.findOne(wid, transaction); // 确保工作项存在
+    return this.workItemRoleModel.create(
+      {
+        ...dto,
+        wid,
+      },
+      { transaction },
+    );
   }
 
   async update(id: string, dto: UpdateWorkItemRoleDto): Promise<WorkItemRole> {

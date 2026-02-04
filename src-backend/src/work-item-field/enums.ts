@@ -20,6 +20,7 @@ export enum SystemFieldId {
   WORKFLOW_TYPE = 'workflowType',
   STATUS = 'status',
   SCHEDULE = 'schedule',
+  MAINTAINER = 'maintainer',
 }
 
 export enum RequireFieldId {

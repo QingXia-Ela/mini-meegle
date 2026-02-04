@@ -5,6 +5,9 @@ export class Favorite extends Model {
   @Column({ type: DataType.INTEGER, autoIncrement: true, primaryKey: true })
   declare id: number;
 
+  @Column({ type: DataType.INTEGER, allowNull: false })
+  declare uid: number;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare type: string;
 

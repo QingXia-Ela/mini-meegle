@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { WorkflowType } from './workflow-type.model';
 import { CreateWorkflowTypeDto } from './dto/create-workflow-type.dto';
 import { UpdateWorkflowTypeDto } from './dto/update-workflow-type.dto';
@@ -17,8 +17,11 @@ export class WorkflowTypeService {
     @InjectModel(Task) private taskModel: typeof Task,
   ) {}
 
-  async create(dto: CreateWorkflowTypeDto): Promise<WorkflowType> {
-    return this.workflowTypeModel.create(dto as any);
+  async create(
+    dto: CreateWorkflowTypeDto,
+    transaction?: Transaction,
+  ): Promise<WorkflowType> {
+    return this.workflowTypeModel.create(dto as any, { transaction });
   }
 
   async findAll(): Promise<WorkflowType[]> {

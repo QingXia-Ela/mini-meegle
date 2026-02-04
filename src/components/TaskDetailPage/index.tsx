@@ -1,11 +1,13 @@
 import { CloseOutlined, HomeFilled, StarFilled, StarOutlined } from '@ant-design/icons';
 import { Button, Spin } from 'antd';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ProcessView from '../ProcessView';
 import { TestMap } from '../ProcessView/exampleMap';
 import ProcessBottomInfo from './components/ProcessBottomInfo';
 import type { ProcessNodeType } from '../ProcessView/types';
 import { useTaskDetailData } from './hooks/useTaskDetailData';
+import { useUserStore } from '@/store/user';
+import { post } from '@/api/request';
 
 interface TaskDetailPageProps {
   spaceId: string;
@@ -16,6 +18,13 @@ interface TaskDetailPageProps {
 
 function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPageProps) {
   const [selectedNode, setSelectedNode] = useState<ProcessNodeType | null>(null);
+  const { userInfo } = useUserStore();
+  const userInfoValue = userInfo as unknown as {
+    user?: { id?: number };
+    sub?: number;
+    id?: number;
+  };
+  const currentUserId = userInfoValue.user?.id ?? userInfoValue.sub ?? userInfoValue.id;
   const {
     loading,
     isFavorited,
@@ -25,7 +34,16 @@ function TaskDetailPage({ spaceId, workItemId, taskId, onClose }: TaskDetailPage
     nodeStatusMap,
     refresh,
     toggleFavorite,
-  } = useTaskDetailData(taskId);
+  } = useTaskDetailData(taskId, currentUserId ? Number(currentUserId) : undefined);
+
+  useEffect(() => {
+    if (!taskId || !currentUserId) return;
+    post(
+      '/recent-views',
+      { type: 'task', id: Number(taskId) },
+      { showError: false },
+    ).catch(() => undefined);
+  }, [taskId, currentUserId]);
 
   const displayNodes = useMemo(() => {
     const sourceNodes = workflowNodes.length > 0 ? workflowNodes : Object.values(TestMap);

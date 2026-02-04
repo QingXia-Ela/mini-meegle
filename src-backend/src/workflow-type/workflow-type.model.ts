@@ -36,7 +36,8 @@ export class WorkflowType extends Model {
       if (!raw) return null;
       try {
         return JSON.parse(raw);
-      } catch {
+      } catch (error) {
+        console.error('parse nodesDataRaw error', error);
         return null;
       }
     },

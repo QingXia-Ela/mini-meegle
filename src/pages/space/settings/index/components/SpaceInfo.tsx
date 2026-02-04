@@ -1,30 +1,35 @@
-import { Form, Input, message } from 'antd';
-import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router';
+import { Button, Form, Input, Modal, message } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import request from '@/api/request';
 import { apiGetSpace, apiUpdateSpace } from '../api';
 
 const SpaceInfo = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [icon, setIcon] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (spaceId) {
-      fetchSpaceInfo();
-    }
-  }, [spaceId]);
-
-  const fetchSpaceInfo = async () => {
+  const fetchSpaceInfo = useCallback(async () => {
     try {
-      const data = await apiGetSpace(spaceId!);
+      const data = (await apiGetSpace(spaceId!)) as {
+        name?: string;
+        icon?: string;
+      };
       form.setFieldsValue({ name: data.name });
       setIcon(data.icon || '');
     } catch (error) {
       console.error('Failed to fetch space info:', error);
     }
-  };
+  }, [form, spaceId]);
+
+  useEffect(() => {
+    if (spaceId) {
+      fetchSpaceInfo();
+    }
+  }, [fetchSpaceInfo, spaceId]);
 
   const handleUpdate = async (values: { name?: string; icon?: string }) => {
     if (!spaceId) return;
@@ -33,6 +38,7 @@ const SpaceInfo = () => {
       await apiUpdateSpace(spaceId, values);
       message.success('更新成功');
     } catch (error) {
+      console.error('Failed to update space:', error);
       message.error('更新失败');
     } finally {
       setLoading(false);
@@ -97,6 +103,32 @@ const SpaceInfo = () => {
     }
   };
 
+  const handleDeleteSpace = () => {
+    if (!spaceId) return;
+    Modal.confirm({
+      title: '确认删除空间？',
+      content: '删除后将无法恢复该空间及其所有数据。',
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          setLoading(true);
+          await request<unknown>(`/spaces/${spaceId}`, {
+            method: 'DELETE',
+          });
+          message.success('删除成功');
+          navigate('/');
+        } catch (error) {
+          console.error('Failed to delete space:', error);
+          message.error('删除失败');
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
   return (
     <div className="w-full px-12">
       <div className="text-xl text-[#262626] mb-8 font-bold">空间信息</div>
@@ -152,6 +184,16 @@ const SpaceInfo = () => {
           />
         </Form.Item>
       </Form>
+
+      <div className="mt-10">
+        <div className="flex items-center mb-3">
+          <div className="w-[3px] h-4 bg-red-500 rounded-full mr-2" />
+          <span className="text-base font-semibold text-[#262626]">危险操作</span>
+        </div>
+        <Button danger loading={loading} onClick={handleDeleteSpace}>
+          删除空间
+        </Button>
+      </div>
     </div>
   );
 };

@@ -5,8 +5,8 @@ import { TaskFavoritesService } from './task-favorites/task-favorites.service';
 export class FavoritesService {
   constructor(private readonly taskFavoritesService: TaskFavoritesService) {}
 
-  async findAll() {
-    const taskFavorites = await this.taskFavoritesService.findAll();
+  async findAll(uid: number) {
+    const taskFavorites = await this.taskFavoritesService.findAll(uid);
     return taskFavorites;
   }
 }

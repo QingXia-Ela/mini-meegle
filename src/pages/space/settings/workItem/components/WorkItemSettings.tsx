@@ -233,6 +233,7 @@ const WorkItemSettings = () => {
             rules={[{ required: true, message: '请输入系统标识' }]}
           >
             <Input
+              disabled
               placeholder="请输入系统标识"
               className="h-10 bg-[#f5f5f5] border-none hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] rounded-lg"
               suffix={

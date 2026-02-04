@@ -16,6 +16,8 @@ import { WorkflowTypeModule } from './workflow-type/workflow-type.module';
 import { CommentModule } from './task-comment/comment.module';
 import { NoticeModule } from './notice/notice.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { UploadModule } from './upload/upload.module';
+import { RecentViewModule } from './recent-view/recent-view.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -76,6 +78,8 @@ const {
     CommentModule,
     NoticeModule,
     FavoritesModule,
+    RecentViewModule,
+    UploadModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [AppController],

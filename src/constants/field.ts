@@ -15,9 +15,13 @@ export enum FieldType {
 export const SystemFieldId = {
   NAME: 'name',
   DESCRIPTION: 'description',
+  CREATED_AT: 'createdAt',
+  CREATOR: 'creator',
+  IN_PROGRESS_NODE: 'inProgressNode',
   WORKFLOW_TYPE: 'workflowType',
   STATUS: 'status',
   SCHEDULE: 'schedule',
+  MAINTAINER: 'maintainer',
 } as const;
 
 export const ReadonlyFieldId = {

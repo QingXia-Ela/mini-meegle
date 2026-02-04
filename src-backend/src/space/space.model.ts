@@ -32,10 +32,28 @@ export class Space extends Model {
   }
 
   @Column({ type: DataType.TEXT('long'), allowNull: true })
-  icon: string;
+  declare icon: string;
 
   @Column({ type: DataType.TEXT, allowNull: false })
-  name: string;
+  declare name: string;
+
+  @Column({ type: DataType.TEXT('long'), allowNull: true })
+  declare overviewContentRaw: string;
+
+  // 虚拟列：将 JSON 字符串反序列化为对象
+  @Column({ type: DataType.VIRTUAL })
+  get overviewContent(): any {
+    if (!this.overviewContentRaw) return null;
+    try {
+      return JSON.parse(this.overviewContentRaw);
+    } catch {
+      return null;
+    }
+  }
+
+  set overviewContent(value: any) {
+    this.overviewContentRaw = value ? JSON.stringify(value) : '';
+  }
 
   @BelongsToMany(() => User, () => SpaceUser)
   declare users: User[];

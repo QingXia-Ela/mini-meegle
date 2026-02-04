@@ -20,13 +20,14 @@ interface WorkflowDetailProps {
 interface WorkflowNodeEvent {
   /** node id */
   [key: string]: {
-    onReach: Array<{ type: 'status_transition', to: /** status option id */ string }>;
-    onComplete: Array<{ type: 'status_transition', to: /** status option id */ string }>;
+    onReach: Array<{ type: 'status_transition', to: /** status option */ { id: string; label: string; color: string } }>;
+    onComplete: Array<{ type: 'status_transition', to: /** status option */ { id: string; label: string; color: string } }>;
   }
 }
 
 interface WorkflowNodeRole {
-  [key: string]: Array<{ id: string; name: string }>;
+  /** node id */
+  [key: string]: /** single role */ Array<{ id: string; name: string }>;
 }
 
 const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
@@ -78,7 +79,7 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
     if (selectedNode) {
       sidebarForm.setFieldsValue({
         name: selectedNode.name,
-        roleIds: (rolesData[selectedNode.id] || []).map(r => r.id),
+        roleIds: (rolesData[selectedNode.id] || [])[0]?.id,
       });
     }
   }, [selectedNodeId, sidebarForm, selectedNode, rolesData]);
@@ -135,12 +136,32 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
     });
   };
 
-  const handleUpdateEvent = (nodeId: ProcessNodeIdType, eventType: 'onReach' | 'onComplete', index: number, to: string) => {
+  const getEventTargetId = (to: unknown) => {
+    if (typeof to === 'string') return to;
+    if (to && typeof to === 'object' && 'id' in to) {
+      const id = (to as { id?: unknown }).id;
+      return typeof id === 'string' ? id : '';
+    }
+    return '';
+  };
+
+  const handleUpdateEvent = (
+    nodeId: ProcessNodeIdType,
+    eventType: 'onReach' | 'onComplete',
+    index: number,
+    toId: string,
+  ) => {
     setEventsData(prev => {
       const nodeEvents = prev[nodeId];
       if (!nodeEvents) return prev;
+      const selectedOption =
+        statusOptions.find((opt) => opt.id === toId) || {
+          id: toId,
+          label: toId,
+          color: '',
+        };
       const newEvents = [...nodeEvents[eventType]];
-      newEvents[index] = { ...newEvents[index], to };
+      newEvents[index] = { ...newEvents[index], to: selectedOption };
       return {
         ...prev,
         [nodeId]: {
@@ -416,14 +437,12 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                                   handleNodeUpdate(selectedNodeId, changedValues);
                                 }
                               } else if (changedValues.roleIds !== undefined) {
-                                // 处理角色变更
-                                const selectedRoles = allRoles
-                                  .filter(r => changedValues.roleIds.includes(r.id))
-                                  .map(r => ({ id: r.id, name: r.name }));
-
+                                // 处理角色变更（单选，但保持数组结构）
+                                const roleId = changedValues.roleIds as string | undefined;
+                                const selectedRole = allRoles.find(r => r.id === roleId);
                                 setRolesData(prev => ({
                                   ...prev,
-                                  [selectedNodeId]: selectedRoles
+                                  [selectedNodeId]: selectedRole ? [{ id: selectedRole.id, name: selectedRole.name }] : []
                                 }));
                               } else {
                                 handleNodeUpdate(selectedNodeId, changedValues);
@@ -449,7 +468,6 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                             className="mb-4"
                           >
                             <Select
-                              mode="multiple"
                               placeholder="请选择关联角色"
                               className="w-full"
                               options={allRoles.map(role => ({
@@ -505,7 +523,7 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                                   <div className="mb-2 text-[#595959] text-xs">状态流转为</div>
                                   <Select
                                     className="w-full h-9 bg-[#f5f5f5] rounded-lg"
-                                    value={event.to}
+                                    value={getEventTargetId(event.to)}
                                     variant="borderless"
                                     onChange={(value) => handleUpdateEvent(selectedNode.id, 'onReach', index, value)}
                                     options={statusOptions.map(opt => ({
@@ -561,7 +579,7 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                                   <div className="mb-2 text-[#595959] text-xs">状态流转为</div>
                                   <Select
                                     className="w-full h-9 bg-[#f5f5f5] rounded-lg"
-                                    value={event.to}
+                                    value={getEventTargetId(event.to)}
                                     variant="borderless"
                                     onChange={(value) => handleUpdateEvent(selectedNode.id, 'onComplete', index, value)}
                                     options={statusOptions.map(opt => ({

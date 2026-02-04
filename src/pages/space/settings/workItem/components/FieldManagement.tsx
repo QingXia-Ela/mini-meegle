@@ -398,13 +398,14 @@ const FieldManagement: React.FC<FieldManagementProps> = ({ workItemId }) => {
                     rules={[{ required: true, message: '请输入字段名称' }]}
                   >
                     <Input
+                      disabled={selectedField.systemType === 'system'}
                       onBlur={handleUpdateFieldName}
                       onPressEnter={handleUpdateFieldName}
                       className="bg-[#f5f5f5] border-none h-10 rounded-lg hover:bg-[#f0f0f0] focus:bg-[#f0f0f0]"
                     />
                   </Form.Item>
 
-                  {(selectedField.type === 'member' || selectedField.type === 'multiMember') && (
+                  {/* {(selectedField.type === 'member' || selectedField.type === 'multiMember') && (
                     <Form.Item
                       label={
                         <Space size={4}>
@@ -421,7 +422,7 @@ const FieldManagement: React.FC<FieldManagementProps> = ({ workItemId }) => {
                         onSearchContentChange={(val) => console.log('Searching:', val)}
                       />
                     </Form.Item>
-                  )}
+                  )} */}
                 </Form>
               </section>
 

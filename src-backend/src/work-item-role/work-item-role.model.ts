@@ -36,23 +36,23 @@ export class WorkItemRole extends Model {
   }
 
   @Column({ type: DataType.STRING, allowNull: false })
-  name: string;
+  declare name: string;
 
   @Column({
     type: DataType.ENUM(...Object.values(RoleAppearance)),
     allowNull: false,
     defaultValue: RoleAppearance.DEFAULT,
   })
-  appearance: RoleAppearance;
+  declare appearance: RoleAppearance;
 
   @Column({ type: DataType.STRING, allowNull: false, defaultValue: '自行添加' })
-  allocation: string;
+  declare allocation: string;
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
-  isSingle: boolean;
+  declare isSingle: boolean;
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true })
-  autoJoin: boolean;
+  declare autoJoin: boolean;
 
   @BelongsTo(() => WorkItem)
   declare workItem: WorkItem;

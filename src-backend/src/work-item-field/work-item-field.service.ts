@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Transaction } from 'sequelize';
 import { WorkItemField } from './work-item-field.model';
 import { CreateWorkItemFieldDto } from './dto/create-work-item-field.dto';
 import { UpdateWorkItemFieldDto } from './dto/update-work-item-field.dto';
@@ -25,19 +26,31 @@ export class WorkItemFieldService {
     const field = await this.workItemFieldModel.findOne({
       where: { id, wid },
     });
-    if (!field) throw new NotFoundException('Field not found in this work item');
+    if (!field)
+      throw new NotFoundException('Field not found in this work item');
     return field;
   }
 
-  async create(wid: string, dto: CreateWorkItemFieldDto): Promise<WorkItemField> {
-    await this.workItemService.findOne(wid); // 确保工作项存在
-    return this.workItemFieldModel.create({
-      ...dto,
-      wid,
-    });
+  async create(
+    wid: string,
+    dto: CreateWorkItemFieldDto,
+    transaction?: Transaction,
+  ): Promise<WorkItemField> {
+    await this.workItemService.findOne(wid, transaction); // 确保工作项存在
+    return this.workItemFieldModel.create(
+      {
+        ...dto,
+        wid,
+      },
+      { transaction },
+    );
   }
 
-  async update(wid: string, id: string, dto: UpdateWorkItemFieldDto): Promise<WorkItemField> {
+  async update(
+    wid: string,
+    id: string,
+    dto: UpdateWorkItemFieldDto,
+  ): Promise<WorkItemField> {
     const field = await this.findOne(wid, id);
     return field.update(dto);
   }
@@ -50,4 +63,3 @@ export class WorkItemFieldService {
     await field.destroy();
   }
 }
-

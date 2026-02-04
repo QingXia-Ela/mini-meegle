@@ -14,3 +14,8 @@ export function apiUpdateSpace(id: string, data: UpdateSpaceDto) {
   });
 }
 
+export function apiDeleteSpace(id: string) {
+  return request<any>(`/spaces/${id}`, {
+    method: 'DELETE',
+  });
+}

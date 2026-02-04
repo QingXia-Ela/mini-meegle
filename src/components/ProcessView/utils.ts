@@ -371,6 +371,15 @@ export function parseProcessNodesIntoCytoscapeElements(
     layerNodesMap[layer] = nodeYAxisOrderMap[layer] || []
   }
 
+  // 排序节点，每一列节点按前置节点数量进行升序排序
+  Object.values(layerNodesMap).forEach(nodes => {
+    nodes.sort((a, b) => {
+      const aNode = nodeMap[a]
+      const bNode = nodeMap[b]
+      return (aNode?.prevNodes?.length || 0) - (bNode?.prevNodes?.length || 0)
+    })
+  })
+
   // 记录所有跨区间边
   const crossNodeEdges = new Set<string>()
 

@@ -49,6 +49,16 @@ export class TaskNodeStatusService {
         maintainerSchedule: null,
         subTaskList: [],
       });
+
+      if (record.node_status === NodeStatus.IN_PROGRESS) {
+        const eventsMap = this.normalizeEventsData(workflowType.eventsData);
+        await this.triggerNodeEvents(
+          taskId,
+          eventsMap,
+          String(nodeId),
+          'onReach',
+        );
+      }
     }
     return record;
   }
@@ -95,6 +105,84 @@ export class TaskNodeStatusService {
       return map;
     }
     return map;
+  }
+
+  private normalizeEventsData(eventsData: unknown): Record<
+    string,
+    {
+      onReach?: Array<{ type?: string; to?: unknown }>;
+      onComplete?: Array<{ type?: string; to?: unknown }>;
+    }
+  > {
+    const map: Record<
+      string,
+      {
+        onReach?: Array<{ type?: string; to?: unknown }>;
+        onComplete?: Array<{ type?: string; to?: unknown }>;
+      }
+    > = {};
+    if (!eventsData) return map;
+    if (!this.isRecord(eventsData)) return map;
+    for (const [key, value] of Object.entries(eventsData)) {
+      if (!this.isRecord(value)) continue;
+      map[String(key)] = {
+        onReach: Array.isArray(value.onReach) ? value.onReach : [],
+        onComplete: Array.isArray(value.onComplete) ? value.onComplete : [],
+      };
+    }
+    return map;
+  }
+
+  private getStatusTransitionTarget(
+    events: Array<{ type?: string; to?: unknown }>,
+  ): string | null {
+    if (!Array.isArray(events) || events.length === 0) return null;
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const event = events[i];
+      if (!event || event.type !== 'status_transition') continue;
+      if (typeof event.to === 'string') return event.to;
+      if (this.isRecord(event.to) && typeof event.to.id === 'string') {
+        return event.to.id;
+      }
+    }
+    return null;
+  }
+
+  private async applyStatusTransitionEvent(
+    taskId: number,
+    targetStatus: string,
+  ) {
+    const task = await this.taskService.findOne(taskId);
+    const list = task.fieldStatusList || [];
+    const nextList = [...list];
+    const index = nextList.findIndex((item) => item.fieldId === 'status');
+    if (index >= 0) {
+      nextList[index] = { ...nextList[index], value: targetStatus };
+    } else {
+      nextList.push({ fieldId: 'status', value: targetStatus });
+    }
+    task.fieldStatusList = nextList;
+    await task.save();
+  }
+
+  private async triggerNodeEvents(
+    taskId: number,
+    eventsMap: Record<
+      string,
+      {
+        onReach?: Array<{ type?: string; to?: unknown }>;
+        onComplete?: Array<{ type?: string; to?: unknown }>;
+      }
+    >,
+    nodeId: string,
+    eventType: 'onReach' | 'onComplete',
+  ) {
+    const nodeEvents = eventsMap[nodeId];
+    if (!nodeEvents) return;
+    const events = nodeEvents[eventType] || [];
+    const targetStatus = this.getStatusTransitionTarget(events);
+    if (targetStatus === null) return;
+    await this.applyStatusTransitionEvent(taskId, targetStatus);
   }
 
   async listSubTasks(taskId: number, nodeId: string): Promise<SubTaskInfo[]> {
@@ -172,6 +260,7 @@ export class TaskNodeStatusService {
       task.workflowType,
     );
     const nodesMap = this.normalizeNodesData(workflowType.nodesData);
+    const eventsMap = this.normalizeEventsData(workflowType.eventsData);
     const nodeKey = String(nodeId);
     const nodeInfo = nodesMap[nodeKey];
     if (!nodeInfo) throw new NotFoundException('Node not found in workflow');
@@ -185,6 +274,7 @@ export class TaskNodeStatusService {
       }
       record.node_status = NodeStatus.COMPLETED;
       await record.save();
+      await this.triggerNodeEvents(taskId, eventsMap, nodeKey, 'onComplete');
 
       for (const nextId of nextNodeIds) {
         const nextInfo = nodesMap[nextId];
@@ -198,9 +288,21 @@ export class TaskNodeStatusService {
         );
         if (prevCompleted.every(Boolean)) {
           const nextRecord = await this.getByTaskAndNode(taskId, nextId);
+          const wasInProgress =
+            nextRecord.node_status === NodeStatus.IN_PROGRESS;
           if (nextRecord.node_status !== NodeStatus.COMPLETED) {
             nextRecord.node_status = NodeStatus.IN_PROGRESS;
-            await nextRecord.save();
+            if (!wasInProgress) {
+              await nextRecord.save();
+              await this.triggerNodeEvents(
+                taskId,
+                eventsMap,
+                nextId,
+                'onReach',
+              );
+            } else {
+              await nextRecord.save();
+            }
           }
         }
       }
@@ -232,6 +334,7 @@ export class TaskNodeStatusService {
       }
       record.node_status = NodeStatus.IN_PROGRESS;
       await record.save();
+      await this.triggerNodeEvents(taskId, eventsMap, nodeKey, 'onReach');
       return { success: true };
     }
 
