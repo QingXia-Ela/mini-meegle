@@ -7,6 +7,7 @@ import CreateSpaceModal from './components/CreateSpaceModal';
 import JoinSpaceModal from './components/JoinSpaceModal';
 import useWorkspaceList from './hooks/useWorkspaceList';
 import defaultSpaceIcon from './assets/defaultSpaceIcon.png';
+import { WORK_ITEM_COLORS, WORK_ITEM_ICONS } from '../../settings/workItem/constants/icons';
 
 interface Space {
   id: string;
@@ -18,6 +19,7 @@ interface WorkItem {
   id: string;
   name: string;
   icon?: string;
+  color?: string;
   sid: string;
 }
 
@@ -136,6 +138,18 @@ function SpaceWorkItemLayout() {
       }))
     : [];
 
+  const getWorkItemIconNode = (iconKey?: string) => {
+    return (
+      WORK_ITEM_ICONS.find((i) => i.key === iconKey)?.icon || (
+        <HomeFilled style={{ fontSize: '12px' }} />
+      )
+    );
+  };
+
+  const getWorkItemColor = (workItem?: WorkItem) => {
+    return workItem?.color || WORK_ITEM_COLORS[0];
+  };
+
   return (
     <div className="w-full h-full flex">
       <div className="w-60 h-full p-4 border-r border-[#cacbcd] overflow-y-auto">
@@ -246,11 +260,10 @@ function SpaceWorkItemLayout() {
                       `/space/${selectedSpaceId}/${workItem.id}`,
                     )}
                     onClick={() => handleWorkItemClick(workItem.id)}
-                    icon={
-                      <HomeFilled
-                        style={{ color: '#fff', fontSize: '12px' }}
-                      />
-                    }
+                    icon={getWorkItemIconNode(workItem.icon)}
+                    iconBackgroundStyle={{
+                      backgroundColor: getWorkItemColor(workItem),
+                    }}
                     label={workItem.name}
                   />
                 ))}

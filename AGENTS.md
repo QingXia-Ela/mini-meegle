@@ -16,6 +16,8 @@
 
 ## 详细文档
 
+以下文档按需读取
+
 - 前端开发规范：`./agents/frontend-standard.md`
 - 后端开发规范：`./agents/backend-standard.md`
 - 数据库设计：`./agents/db.md`
