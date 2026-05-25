@@ -1,8 +1,8 @@
 import { getColorByStatus } from '../../../ProcessView/utils';
 import GrayBorderCard from '../../../GrayBorderCard';
-import { Button, Collapse, Form, Input, Popover, Select, Table, Tabs, Tag, InputNumber, DatePicker, Switch, message, Spin, List, Modal } from 'antd';
+import { Button, Collapse, Form, Input, Popover, Select, Table, Tabs, Tag, InputNumber, DatePicker, Switch, message, Spin, List, Modal, Upload } from 'antd';
 import type { RangePickerProps } from 'antd/es/date-picker';
-import { MoreOutlined } from '@ant-design/icons';
+import { MoreOutlined, UploadOutlined } from '@ant-design/icons';
 import ProcessViewComment, { CommentItem } from './Comment';
 import type { ProcessNodeType } from '@/components/ProcessView/types';
 import { useEffect, useMemo, useState, useCallback } from 'react';
@@ -10,7 +10,7 @@ import { get, put, del, post } from '@/api/request';
 import { FieldType, SystemFieldId, ReadonlyFieldId } from '@/constants/field';
 import MemberSelect from '@/components/MemberSelect';
 import dayjs from 'dayjs';
-import type { SubTaskInfo, TaskNodeStatusDetail } from '@/components/TaskDetailPage/types';
+import type { ApprovalInfo, ApprovalMode, SubTaskInfo, TaskNodeStatusDetail } from '@/components/TaskDetailPage/types';
 import { transitionNodeStatus } from '@/components/TaskDetailPage/api';
 
 const { TextArea } = Input;
@@ -275,6 +275,378 @@ function CommentList({
         )}
       />
     </div>
+  );
+}
+
+const APPROVAL_MODE_LABELS: Record<ApprovalMode, string> = {
+  none: '无检查',
+  merge_request: '合并请求检查',
+  document: '填入相关文档检查',
+  ai_material: '填入相关素材并引入 AI 审查',
+};
+
+type ApprovalStageStatus = 'pending' | 'running' | 'success' | 'error' | 'skipped';
+
+const APPROVAL_STAGE_STATUS_LABELS: Record<ApprovalStageStatus, string> = {
+  pending: '待检查',
+  running: '检查中',
+  success: '通过',
+  error: '不通过',
+  skipped: '已跳过',
+};
+
+const APPROVAL_STAGE_STATUS_COLORS: Record<ApprovalStageStatus, string> = {
+  pending: 'default',
+  running: 'processing',
+  success: 'green',
+  error: 'red',
+  skipped: 'default',
+};
+
+interface ApprovalInfoPanelProps {
+  taskId: string;
+  nodeId?: string | number | null;
+  nodeName?: string;
+  approvalConfig?: {
+    mode?: ApprovalMode;
+    prompt?: string;
+    aiReviewMr?: boolean;
+  };
+  onRefreshNodes?: () => Promise<void> | void;
+}
+
+function ApprovalInfoPanel({
+  taskId,
+  nodeId,
+  nodeName,
+  approvalConfig,
+  onRefreshNodes,
+}: ApprovalInfoPanelProps) {
+  const [form] = Form.useForm();
+  const [approvalInfo, setApprovalInfo] = useState<ApprovalInfo | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const mode = approvalConfig?.mode || 'none';
+  const shouldRender = Boolean(nodeId) && mode !== 'none';
+  const lastResult = approvalInfo?.lastCheckResult;
+  const aiReviewDetail = lastResult?.detail?.aiReview;
+  const issues = lastResult?.detail?.issues || aiReviewDetail?.issues || [];
+  const conversation = lastResult?.detail?.conversation || aiReviewDetail?.conversation || [];
+  const rawOutput = lastResult?.detail?.raw || aiReviewDetail?.raw;
+  const giteeMrUrl = Form.useWatch('giteeMrUrl', form) || approvalInfo?.giteeMrUrl;
+  const aiReviewMrEnabled = (approvalInfo?.aiReviewMr ?? approvalConfig?.aiReviewMr) === true;
+  const stageItems = useMemo(() => {
+    const detail = lastResult?.detail || {};
+    const items: Array<{ name: string; status: ApprovalStageStatus; message: string }> = [];
+    if (mode === 'merge_request') {
+      items.push({
+        name: '目标分支检查',
+        status: !lastResult ? 'pending' : detail.targetBranch === 'main' || detail.targetBranch === 'master' ? 'success' : 'error',
+        message: detail.targetBranch ? `目标分支：${detail.targetBranch}` : '等待检查',
+      });
+      items.push({
+        name: '冲突检查',
+        status: !lastResult ? 'pending' : detail.hasConflict ? 'error' : 'success',
+        message: !lastResult ? '等待检查' : detail.hasConflict ? '存在冲突' : '未发现冲突',
+      });
+      items.push({
+        name: '评论解决检查',
+        status: !lastResult ? 'pending' : detail.unresolvedCommentCount > 0 ? 'error' : 'success',
+        message: !lastResult ? '等待检查' : `未解决评论数：${detail.unresolvedCommentCount ?? 0}`,
+      });
+      items.push({
+        name: 'AI review',
+        status: checking
+          ? 'running'
+          : !aiReviewMrEnabled
+            ? 'skipped'
+            : detail.aiReviewSkipped
+              ? 'skipped'
+              : !lastResult
+                ? 'pending'
+                : aiReviewDetail?.passed
+                  ? 'success'
+                  : 'error',
+        message: checking
+          ? '正在执行'
+          : !aiReviewMrEnabled
+            ? '未开启'
+            : detail.aiReviewSkipped
+              ? '基础检查未通过，已跳过 AI review'
+              : aiReviewDetail?.message || '等待检查',
+      });
+      return items;
+    }
+    if (mode === 'document') {
+      items.push({
+        name: '文档链接检查',
+        status: !lastResult ? 'pending' : lastResult.passed ? 'success' : 'error',
+        message: lastResult?.message || '等待检查',
+      });
+    }
+    if (mode === 'ai_material') {
+      items.push({
+        name: '素材读取',
+        status: !lastResult ? 'pending' : lastResult.passed || rawOutput ? 'success' : 'error',
+        message: !lastResult ? '等待检查' : rawOutput ? '已获取 AI 输出' : lastResult.message,
+      });
+      items.push({
+        name: 'AI 审查',
+        status: checking ? 'running' : !lastResult ? 'pending' : lastResult.passed ? 'success' : 'error',
+        message: lastResult?.message || '等待检查',
+      });
+    }
+    return items;
+  }, [aiReviewDetail, aiReviewMrEnabled, checking, lastResult, mode, rawOutput]);
+
+  const fetchApprovalInfo = useCallback(async () => {
+    if (!nodeId || mode === 'none') {
+      setApprovalInfo(null);
+      form.resetFields();
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await get<ApprovalInfo>(
+        `/task-node-status/${taskId}/nodes/${encodeURIComponent(String(nodeId))}/approval`,
+        { showError: false },
+      );
+      setApprovalInfo(data || {});
+      form.setFieldsValue(data || {});
+    } catch {
+      message.error('加载审批信息失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [form, mode, nodeId, taskId]);
+
+  useEffect(() => {
+    fetchApprovalInfo();
+  }, [fetchApprovalInfo]);
+
+  const saveApprovalInfo = useCallback(async (extra?: Partial<ApprovalInfo>) => {
+    if (!nodeId) return null;
+    const values = form.getFieldsValue();
+    const data = await put<ApprovalInfo>(
+      `/task-node-status/${taskId}/nodes/${encodeURIComponent(String(nodeId))}/approval`,
+      {
+        ...values,
+        ...extra,
+        mode,
+      },
+    );
+    setApprovalInfo(data || {});
+    form.setFieldsValue(data || {});
+    await onRefreshNodes?.();
+    return data;
+  }, [form, mode, nodeId, onRefreshNodes, taskId]);
+
+  const handleCheck = useCallback(async () => {
+    if (!nodeId) return;
+    setChecking(true);
+    try {
+      await saveApprovalInfo();
+      const data = await post<ApprovalInfo>(
+        `/task-node-status/${taskId}/nodes/${encodeURIComponent(String(nodeId))}/approval/check`,
+      );
+      setApprovalInfo(data || {});
+      form.setFieldsValue(data || {});
+      if (data?.lastCheckResult?.passed) {
+        message.success('审批检查通过');
+      } else {
+        message.warning(data?.lastCheckResult?.message || '审批检查未通过');
+      }
+      await onRefreshNodes?.();
+    } catch {
+      message.error('审批检查失败');
+    } finally {
+      setChecking(false);
+    }
+  }, [form, nodeId, onRefreshNodes, saveApprovalInfo, taskId]);
+
+  if (!shouldRender) return null;
+
+  return (
+    <GrayBorderCard className="!px-3 !py-3 mb-4">
+      <Spin spinning={loading}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-sm font-medium text-[#262626]">审批信息</div>
+            <div className="text-xs text-[#8c8c8c] mt-1">
+              {nodeName ? `${nodeName} · ` : ''}{APPROVAL_MODE_LABELS[mode]}
+              {approvalInfo?.aiReviewMr ? ' · MR AI 扫描已开启' : ''}
+            </div>
+          </div>
+          {lastResult && (
+            <Tag color={lastResult.passed ? 'green' : 'red'}>
+              {lastResult.passed ? '已通过' : '未通过'}
+            </Tag>
+          )}
+        </div>
+
+        <Form form={form} layout="vertical">
+          {mode === 'merge_request' && (
+            <Form.Item label="Gitee MR 链接" name="giteeMrUrl" className="mb-3">
+              <Input placeholder="https://gitee.com/{owner}/{repo}/pulls/{number}" onBlur={() => saveApprovalInfo()} />
+            </Form.Item>
+          )}
+
+          {mode === 'document' && (
+            <Form.Item label="文档链接" name="documentUrl" className="mb-3">
+              <Input placeholder="请输入文档链接" onBlur={() => saveApprovalInfo()} />
+            </Form.Item>
+          )}
+
+          {mode === 'ai_material' && (
+            <>
+              <Form.Item label="文档链接" name="documentUrl" className="mb-3">
+                <Input placeholder="可填写文档链接" onBlur={() => saveApprovalInfo()} />
+              </Form.Item>
+              <Form.Item label="素材链接" name="materialUrl" className="mb-3">
+                <Input placeholder="可填写素材链接" onBlur={() => saveApprovalInfo()} />
+              </Form.Item>
+              <Form.Item label="上传附件" className="mb-3">
+                <Upload
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={async (file) => {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                      const uploaded = await post<{ url: string; name: string }>('/upload/file', formData);
+                      await saveApprovalInfo({
+                        attachmentUrl: uploaded.url,
+                        attachmentName: uploaded.name || file.name,
+                      });
+                      message.success('附件已上传');
+                    } catch {
+                      message.error('附件上传失败');
+                    }
+                    return Upload.LIST_IGNORE;
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>上传附件</Button>
+                </Upload>
+                {approvalInfo?.attachmentName && (
+                  <div className="text-xs text-[#595959] mt-2">
+                    当前附件：{approvalInfo.attachmentName}
+                  </div>
+                )}
+              </Form.Item>
+              {approvalConfig?.prompt && (
+                <div className="text-xs text-[#8c8c8c] bg-[#fafafa] border border-[#f0f0f0] rounded px-3 py-2 mb-3 whitespace-pre-wrap">
+                  提示词：{approvalConfig.prompt}
+                </div>
+              )}
+            </>
+          )}
+        </Form>
+
+        {lastResult && (
+          <div className="text-xs text-[#595959] bg-[#fafafa] border border-[#f0f0f0] rounded px-3 py-2 mb-3">
+            <div>{lastResult.message}</div>
+            <div className="mt-1 text-[#8c8c8c]">检查时间：{lastResult.checkedAt}</div>
+            {issues.length > 0 && (
+              <div className="mt-1 text-[#ff4d4f]">问题数量：{issues.length}</div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button type="primary" loading={checking} onClick={handleCheck}>
+            执行检查
+          </Button>
+          <Button onClick={() => setDetailOpen(true)}>查看卡点状态</Button>
+          {mode === 'merge_request' && giteeMrUrl && (
+            <Button href={giteeMrUrl} target="_blank">
+              打开 Gitee MR
+            </Button>
+          )}
+        </div>
+
+        <Modal
+          title="卡点状态与 AI 审查详情"
+          open={detailOpen}
+          onCancel={() => setDetailOpen(false)}
+          footer={null}
+          width={760}
+        >
+          <div className="space-y-4">
+            <div>
+              <div className="font-medium mb-2">阶段状态</div>
+              {mode === 'merge_request' && giteeMrUrl && (
+                <Button className="mb-2" size="small" href={giteeMrUrl} target="_blank">
+                  打开 Gitee MR
+                </Button>
+              )}
+              <List
+                size="small"
+                dataSource={stageItems}
+                renderItem={(item) => (
+                  <List.Item>
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div>
+                        <div className="font-medium">{item.name}</div>
+                        <div className="text-xs text-[#8c8c8c] mt-1">{item.message}</div>
+                      </div>
+                      <Tag color={APPROVAL_STAGE_STATUS_COLORS[item.status]}>
+                        {APPROVAL_STAGE_STATUS_LABELS[item.status]}
+                      </Tag>
+                    </div>
+                  </List.Item>
+                )}
+              />
+            </div>
+            <div>
+              <div className="font-medium mb-2">问题列表</div>
+              {issues.length > 0 ? (
+                <List
+                  size="small"
+                  dataSource={issues}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <div>
+                        <div className="font-mono text-xs text-[#595959]">
+                          {item.file}{item.line ? `:${item.line}` : ''}
+                        </div>
+                        <div>{item.message}</div>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <div className="text-[#8c8c8c]">暂无问题</div>
+              )}
+            </div>
+            <div>
+              <div className="font-medium mb-2">对话流程</div>
+              {conversation.length > 0 ? (
+                <div className="space-y-2 max-h-[360px] overflow-auto">
+                  {conversation.map((item, index) => (
+                    <div key={`${item.role}-${index}`} className="border border-[#f0f0f0] rounded p-2">
+                      <div className="text-xs font-medium text-[#595959] mb-1">{item.role}</div>
+                      <pre className="text-xs whitespace-pre-wrap m-0">{item.content}</pre>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[#8c8c8c]">暂无对话记录</div>
+              )}
+            </div>
+            {rawOutput && (
+              <div>
+                <div className="font-medium mb-2">AI 原始输出</div>
+                <pre className="text-xs whitespace-pre-wrap bg-[#fafafa] border border-[#f0f0f0] rounded p-2 max-h-[240px] overflow-auto">
+                  {rawOutput}
+                </pre>
+              </div>
+            )}
+          </div>
+        </Modal>
+      </Spin>
+    </GrayBorderCard>
   );
 }
 
@@ -783,6 +1155,13 @@ function ProcessBottomInfo({
                   },
                 ]}></Table>
               </GrayBorderCard>
+              <ApprovalInfoPanel
+                taskId={taskId}
+                nodeId={node.id}
+                nodeName={node.name}
+                approvalConfig={node.approvalConfig}
+                onRefreshNodes={onRefreshNodes}
+              />
               <Collapse items={[
                 {
                   key: '1',
@@ -934,6 +1313,13 @@ function ProcessBottomInfo({
               },
             ]}></Table>
           </GrayBorderCard>
+          <ApprovalInfoPanel
+            taskId={taskId}
+            nodeId={currentNode?.id}
+            nodeName={currentNode?.name}
+            approvalConfig={currentNode?.approvalConfig}
+            onRefreshNodes={onRefreshNodes}
+          />
           <Collapse items={[
             {
               key: '1',

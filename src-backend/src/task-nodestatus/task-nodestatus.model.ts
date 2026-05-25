@@ -22,6 +22,30 @@ export enum NodeStatus {
   COMPLETED = 'completed',
 }
 
+export enum ApprovalMode {
+  NONE = 'none',
+  MERGE_REQUEST = 'merge_request',
+  DOCUMENT = 'document',
+  AI_MATERIAL = 'ai_material',
+}
+
+export interface ApprovalCheckResult {
+  passed: boolean;
+  message: string;
+  checkedAt: string;
+  detail?: Record<string, any>;
+}
+
+export interface ApprovalInfo {
+  mode?: ApprovalMode;
+  giteeMrUrl?: string | null;
+  documentUrl?: string | null;
+  materialUrl?: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  lastCheckResult?: ApprovalCheckResult | null;
+}
+
 @Table({ tableName: 'task_node_statuses', timestamps: true })
 export class TaskNodeStatus extends Model {
   @Column({
@@ -60,6 +84,9 @@ export class TaskNodeStatus extends Model {
   @Column({ type: DataType.TEXT('long'), allowNull: true })
   subTaskListRaw?: string;
 
+  @Column({ type: DataType.TEXT('long'), allowNull: true })
+  approvalInfoRaw?: string;
+
   @Column({ type: DataType.VIRTUAL, allowNull: true })
   get subTaskList(): SubTaskInfo[] {
     const raw = this.getDataValue('subTaskListRaw') as string | undefined;
@@ -73,6 +100,21 @@ export class TaskNodeStatus extends Model {
 
   set subTaskList(value: SubTaskInfo[]) {
     this.setDataValue('subTaskListRaw', JSON.stringify(value || []));
+  }
+
+  @Column({ type: DataType.VIRTUAL, allowNull: true })
+  get approvalInfo(): ApprovalInfo {
+    const raw = this.getDataValue('approvalInfoRaw') as string | undefined;
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw) as ApprovalInfo;
+    } catch {
+      return {};
+    }
+  }
+
+  set approvalInfo(value: ApprovalInfo) {
+    this.setDataValue('approvalInfoRaw', JSON.stringify(value || {}));
   }
 
   @BelongsTo(() => Task)

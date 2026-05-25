@@ -24,7 +24,7 @@ export function cleanUserInfo() {
 }
 
 async function request<T = any>(input: string, init: ModifyRequestInit = {}, opts: RequestOptions = { showError: true }): Promise<T> {
-  const { showError = true, timeout = 10000 } = opts;
+  const { showError = true, timeout = 30000 } = opts;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);

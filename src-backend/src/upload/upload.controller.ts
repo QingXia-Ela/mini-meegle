@@ -35,4 +35,21 @@ export class UploadController {
     const url = await this.uploadService.saveFile(file);
     return { url };
   }
+
+  @Post('file')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+    }),
+  )
+  async uploadFile(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('请上传文件');
+    }
+
+    const url = await this.uploadService.saveFile(file);
+    return { url, name: file.originalname };
+  }
 }

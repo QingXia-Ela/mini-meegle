@@ -3,7 +3,7 @@ import cytoscape from 'cytoscape';
 import edgehandles from 'cytoscape-edgehandles';
 import type { EdgeSingular, NodeSingular } from 'cytoscape';
 import type { ProcessNodeType, ProcessNodeIdType } from './types';
-import { addEdge, getColorByStatus, parseProcessNodesIntoCytoscapeElements, calculatePanBounds, X_LAYER_WIDTH, Y_NODE_HEIGHT } from './utils';
+import { addEdge, getColorByStatus, parseProcessNodesIntoCytoscapeElements } from './utils';
 import { message } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import cytoscapePopper from 'cytoscape-popper';
@@ -96,6 +96,106 @@ function setNodeSelectStyle(node: NodeSingular) {
   node.style('border-width', 2)
 }
 
+const PAN_PADDING = 80
+
+type PanPosition = { x: number, y: number }
+
+interface AxisPanBounds {
+  min: number
+  max: number
+}
+
+interface ProcessPanBounds {
+  x: AxisPanBounds
+  y: AxisPanBounds
+}
+
+function calculateAxisPanBounds(
+  containerSize: number,
+  graphStart: number,
+  graphEnd: number,
+  zoom: number,
+  padding: number,
+): AxisPanBounds {
+  const graphSize = (graphEnd - graphStart) * zoom
+
+  if (graphSize + padding * 2 <= containerSize) {
+    return {
+      min: padding - graphStart * zoom,
+      max: containerSize - padding - graphEnd * zoom,
+    }
+  }
+
+  return {
+    min: containerSize - padding - graphEnd * zoom,
+    max: padding - graphStart * zoom,
+  }
+}
+
+function calculateProcessPanBounds(cy: cytoscape.Core, container: HTMLDivElement): ProcessPanBounds | null {
+  const elements = cy.elements()
+  const containerWidth = container.clientWidth
+  const containerHeight = container.clientHeight
+
+  if (elements.length === 0 || containerWidth <= 0 || containerHeight <= 0) return null
+
+  const boundingBox = elements.boundingBox({
+    includeLabels: true,
+    includeOverlays: false,
+  })
+  const zoom = cy.zoom()
+  const padding = Math.min(PAN_PADDING, Math.floor(Math.min(containerWidth, containerHeight) / 4))
+
+  return {
+    x: calculateAxisPanBounds(containerWidth, boundingBox.x1, boundingBox.x2, zoom, padding),
+    y: calculateAxisPanBounds(containerHeight, boundingBox.y1, boundingBox.y2, zoom, padding),
+  }
+}
+
+function clampPan(pan: PanPosition, bounds: ProcessPanBounds): PanPosition {
+  return {
+    x: Math.min(Math.max(pan.x, bounds.x.min), bounds.x.max),
+    y: Math.min(Math.max(pan.y, bounds.y.min), bounds.y.max),
+  }
+}
+
+function bindPanBounds(
+  cy: cytoscape.Core,
+  container: HTMLDivElement,
+  onPanChange: (pan: PanPosition) => void,
+) {
+  let isClampingPan = false
+
+  const clampCurrentPan = () => {
+    const bounds = calculateProcessPanBounds(cy, container)
+    if (!bounds) return
+
+    const currentPan = cy.pan()
+    const nextPan = clampPan(currentPan, bounds)
+    const needUpdate = currentPan.x !== nextPan.x || currentPan.y !== nextPan.y
+
+    if (needUpdate) {
+      isClampingPan = true
+      cy.pan(nextPan)
+      isClampingPan = false
+    }
+
+    onPanChange(needUpdate ? nextPan : currentPan)
+  }
+
+  cy.on('pan', () => {
+    if (isClampingPan) return
+    clampCurrentPan()
+  })
+
+  clampCurrentPan()
+
+  const resizeObserver = new ResizeObserver(clampCurrentPan)
+  resizeObserver.observe(container)
+
+  return () => resizeObserver.disconnect()
+}
+
 export const ProcessViewWithEditMode = forwardRef(function ({
   nodes,
   onNodeClick,
@@ -142,10 +242,6 @@ export const ProcessViewWithEditMode = forwardRef(function ({
     lastPanRef.current = pan
 
     // 计算 pan 边界
-    const { maxLayerCount, maxNodesInLayer } = calculatePanBounds(nodes)
-    const maxPanX = maxLayerCount * X_LAYER_WIDTH + 200
-    const maxPanY = maxNodesInLayer * Y_NODE_HEIGHT + 100
-
     const cy = cytoscape({
       container: containerRef.current,
       elements: parseProcessNodesIntoCytoscapeElements(nodes),
@@ -213,7 +309,6 @@ export const ProcessViewWithEditMode = forwardRef(function ({
             'width': 3,
             'line-color': '#aaa',
             'curve-style': 'unbundled-bezier',
-            // 直接读取预计算的 data 值
             'control-point-distances': (ele: EdgeSingular) => ele.data('control-point-distances'),
             'control-point-weights': (ele: EdgeSingular) => ele.data('control-point-weights'),
           }
@@ -279,30 +374,7 @@ export const ProcessViewWithEditMode = forwardRef(function ({
       ]
     })
 
-    cy.on('pan', () => {
-      const currentPan = cy.pan()
-      const newPan = { ...currentPan }
-      let needUpdate = false
-
-      // 限制 x 轴 pan
-      if (Math.abs(newPan.x) > maxPanX) {
-        newPan.x = newPan.x > 0 ? maxPanX : -maxPanX
-        needUpdate = true
-      }
-
-      // 限制 y 轴 pan
-      if (Math.abs(newPan.y) > maxPanY) {
-        newPan.y = newPan.y > 0 ? maxPanY : -maxPanY
-        needUpdate = true
-      }
-
-      if (needUpdate) {
-        cy.pan(newPan)
-      }
-
-      changePanRef(needUpdate ? newPan : currentPan)
-    })
-
+    const disconnectPanBounds = bindPanBounds(cy, containerRef.current, changePanRef)
     let selectNode: NodeSingular | null = null
     let currentMouseHoverNode: NodeSingular | null = null
     // make all nodes and edges selectable
@@ -351,7 +423,7 @@ export const ProcessViewWithEditMode = forwardRef(function ({
         try {
           onAddEdge?.(selectNodeId, currentMouseHoverNodeId, addEdge(nodes, selectNodeId, currentMouseHoverNodeId))
         } catch (error) {
-          message.error('边创建失败:' + (error as Error).message)
+          message.error('边创建失�?' + (error as Error).message)
         }
         return
       }
@@ -384,6 +456,7 @@ export const ProcessViewWithEditMode = forwardRef(function ({
 
     return () => {
       eh.destroy()
+      disconnectPanBounds()
       if (cytoRef.current) {
         const cy = cytoRef.current as cytoscape.Core
         cy.removeAllListeners()
@@ -455,9 +528,7 @@ export const ProcessViewWithEditMode = forwardRef(function ({
   );
 })
 // 此参数越大，流程图左右gap越小
-const PanBasicX = 250
 // 此参数越大，流程图上下gap越大
-const PanBasicY = 30
 
 function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
   const cytoRef = useRef<cytoscape.Core | null>(null)
@@ -470,7 +541,7 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
     }, 100)
   ).current
 
-  // 初始化 cytoscape 实例（仅挂载时）
+  // 初始�?cytoscape 实例（仅挂载时）
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -481,13 +552,9 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
     lastPanRef.current = pan
 
     // 计算 pan 边界
-    const { maxLayerCount, maxNodesInLayer } = calculatePanBounds(nodes)
-    const maxPanX = maxLayerCount * X_LAYER_WIDTH / 2
-    const maxPanY = maxNodesInLayer * Y_NODE_HEIGHT / 2
-
     cytoRef.current = cytoscape({
       container: containerRef.current,
-      elements: [],
+      elements: parseProcessNodesIntoCytoscapeElements(nodes),
       zoomingEnabled: false,
       userZoomingEnabled: false,
       panningEnabled: true,
@@ -547,7 +614,6 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
             'width': 1,
             'line-color': '#aaa',
             'curve-style': 'unbundled-bezier',
-            // 直接读取预计算的 data 值
             'control-point-distances': (ele: EdgeSingular) => ele.data('control-point-distances'),
             'control-point-weights': (ele: EdgeSingular) => ele.data('control-point-weights'),
           }
@@ -584,36 +650,7 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
     })
 
 
-    cytoRef.current.on('pan', () => {
-      if (!cytoRef.current) return
-      // if (triggerPanEvent) return
-      const cy = cytoRef.current
-      const currentPan = cy.pan()
-      const newPan = { ...currentPan }
-      let needUpdate = false
-
-      // 限制 x 轴 pan
-      if (newPan.x > maxPanX - PanBasicX * 3 || newPan.x < -maxPanX + PanBasicX * 3) {
-        newPan.x = newPan.x > 0 ? maxPanX - PanBasicX * 3 : -maxPanX + PanBasicX * 3
-        needUpdate = true
-      }
-
-      // 限制 y 轴 pan
-      // 居中线
-      const PanYBasicMove = maxPanY * 2
-      if ((newPan.y > PanYBasicMove + PanBasicY) || newPan.y < PanYBasicMove - PanBasicY) {
-        newPan.y = newPan.y > PanYBasicMove ? PanYBasicMove + PanBasicY : PanYBasicMove - PanBasicY
-        needUpdate = true
-      }
-
-      if (needUpdate) {
-        cy.pan(newPan)
-      }
-
-      changePanRef(needUpdate ? newPan : currentPan)
-    })
-
-    // 添加节点悬停效果
+    const disconnectPanBounds = bindPanBounds(cytoRef.current, containerRef.current, changePanRef)
     cytoRef.current.elements('node[type != "virtual_node"]')
       .on('mouseover', (event) => {
         const node = event.target as NodeSingular
@@ -634,6 +671,7 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
     })
 
     return () => {
+      disconnectPanBounds()
       if (cytoRef.current) {
         const cy = cytoRef.current as cytoscape.Core
         cy.removeAllListeners()
@@ -642,18 +680,6 @@ function ProcessView({ nodes, onNodeClick }: ProcessViewProps) {
       }
     }
   }, [nodes, onNodeClick, changePanRef])
-
-  // 当 nodes 变化时，更新图表元素
-  useEffect(() => {
-    if (!cytoRef.current) return
-    const elements = parseProcessNodesIntoCytoscapeElements(nodes)
-    if (elements && Array.isArray(elements)) {
-      // 移除所有节点并重新设置元素
-      cytoRef.current.elements('node').remove()
-      cytoRef.current.elements('edge').remove()
-      cytoRef.current.add(elements as cytoscape.ElementDefinition[])
-    }
-  }, [nodes])
   return (
     <div className="h-full flex justify-center items-center flex-1 w-full" ref={containerRef}>
     </div>

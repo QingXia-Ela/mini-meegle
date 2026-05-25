@@ -28,14 +28,7 @@ import {
   INIT_BUG_TASKS,
   INIT_TASK_TASKS,
 } from './INIT';
-import { WorkItemService } from '../work-item/work-item.service';
-import { WorkItemFieldService } from '../work-item-field/work-item-field.service';
-import { WorkItemRoleService } from '../work-item-role/work-item-role.service';
 import { WorkflowTypeService } from '../workflow-type/workflow-type.service';
-import { TaskService } from '../task/task.service';
-import { CreateWorkItemDto } from '../work-item/dto/create-work-item.dto';
-import { CreateWorkItemFieldDto } from '../work-item-field/dto/create-work-item-field.dto';
-import { CreateWorkItemRoleDto } from '../work-item-role/dto/create-work-item-role.dto';
 import { CreateWorkflowTypeDto } from '../workflow-type/dto/create-workflow-type.dto';
 import { WorkItem } from '../work-item/work-item.model';
 import { WorkItemSpace } from '../work-item/work-item-space.model';
@@ -64,11 +57,7 @@ export class SpaceService {
     @InjectModel(Task) private taskModel: typeof Task,
     @InjectModel(TaskNodeStatus)
     private taskNodeStatusModel: typeof TaskNodeStatus,
-    private workItemService: WorkItemService,
-    private workItemFieldService: WorkItemFieldService,
-    private workItemRoleService: WorkItemRoleService,
     private workflowTypeService: WorkflowTypeService,
-    private taskService: TaskService,
   ) {}
 
   async create(dto: CreateSpaceDto, userId: number): Promise<Space> {
@@ -117,22 +106,36 @@ export class SpaceService {
         // 初始化工作项
         const workItemIdMap = new Map<string, string>();
         const workItemKeys = ['userStory', 'bug', 'task'] as const;
+        const workItemSeeds: Array<{
+          key: (typeof workItemKeys)[number];
+          record: Record<string, unknown> & { id: string; sid: string };
+        }> = [];
         for (const [index, workItem] of INIT_WORK_ITEMS.entries()) {
           const key = workItemKeys[index];
           if (!key) {
             throw new Error('Missing work item key mapping');
           }
-          const payload: CreateWorkItemDto = {
+          const record = {
             ...workItem,
             sid: space.id,
             id: await generateUniqueId(this.workItemModel, 8),
           };
-          const created = await this.workItemService.create(
-            payload,
-            transaction,
-          );
-          workItemIdMap.set(key, created.id);
+          workItemSeeds.push({ key, record });
         }
+        await this.workItemModel.bulkCreate(
+          workItemSeeds.map((item) => item.record as any),
+          { transaction },
+        );
+        await this.workItemSpaceModel.bulkCreate(
+          workItemSeeds.map((item) => ({
+            sid: space.id,
+            wid: item.record.id,
+          })),
+          { transaction },
+        );
+        workItemSeeds.forEach((item) => {
+          workItemIdMap.set(item.key, item.record.id);
+        });
         console.log('[!!!] end init work items');
         console.log('[!!!] start init work item fields');
         // 初始化工作项字段
@@ -142,80 +145,67 @@ export class SpaceService {
         if (!userStoryWid || !bugWid || !taskWid) {
           throw new Error('Missing work item id seeds');
         }
-        for (const field of INIT_USER_STORY_WORK_ITEM_FIELDS) {
-          const payload: CreateWorkItemFieldDto & { id: string } = {
-            wid: userStoryWid,
-            id: field.id,
-            name: field.name,
-            type: field.type,
-            config: field.config,
-          };
-          await this.workItemFieldService.create(
-            userStoryWid,
-            payload,
-            transaction,
-          );
-        }
-        for (const field of INIT_BUG_WORK_ITEM_FIELDS) {
-          const payload: CreateWorkItemFieldDto & { id: string } = {
-            wid: bugWid,
-            id: field.id,
-            name: field.name,
-            type: field.type,
-            config: field.config,
-          };
-          await this.workItemFieldService.create(bugWid, payload, transaction);
-        }
-        for (const field of INIT_TASK_WORK_ITEM_FIELDS) {
-          const payload: CreateWorkItemFieldDto & { id: string } = {
-            wid: taskWid,
-            id: field.id,
-            name: field.name,
-            type: field.type,
-            config: field.config,
-          };
-          await this.workItemFieldService.create(taskWid, payload, transaction);
-        }
+        await this.workItemFieldModel.bulkCreate(
+          [
+            ...INIT_USER_STORY_WORK_ITEM_FIELDS.map((field) => ({
+              wid: userStoryWid,
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              config: field.config,
+            })),
+            ...INIT_BUG_WORK_ITEM_FIELDS.map((field) => ({
+              wid: bugWid,
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              config: field.config,
+            })),
+            ...INIT_TASK_WORK_ITEM_FIELDS.map((field) => ({
+              wid: taskWid,
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              config: field.config,
+            })),
+          ] as any[],
+          { transaction },
+        );
         console.log('[!!!] end init work item fields');
         console.log('[!!!] start init work item roles');
         // 初始化工作项角色
-        for (const role of INIT_USER_STORY_WORK_ITEM_ROLES) {
-          const payload: CreateWorkItemRoleDto & { id: string } = {
-            id: role.id,
-            name: role.name,
-            appearance: role.appearance,
-            allocation: role.allocation,
-            isSingle: role.isSingle,
-            autoJoin: role.autoJoin,
-          };
-          await this.workItemRoleService.create(
-            userStoryWid,
-            payload,
-            transaction,
-          );
-        }
-        for (const role of INIT_BUG_WORK_ITEM_ROLES) {
-          const payload: CreateWorkItemRoleDto & { id: string } = {
-            id: role.id,
-            name: role.name,
-            appearance: role.appearance,
-            allocation: role.allocation,
-            isSingle: role.isSingle,
-            autoJoin: role.autoJoin,
-          };
-          await this.workItemRoleService.create(bugWid, payload, transaction);
-        }
-        for (const role of INIT_TASK_WORK_ITEM_ROLES) {
-          const payload: CreateWorkItemRoleDto & { id: string } = {
-            id: role.id,
-            name: role.name,
-            appearance: role.appearance,
-            allocation: role.allocation,
-            isSingle: role.isSingle,
-            autoJoin: role.autoJoin,
-          };
-          await this.workItemRoleService.create(taskWid, payload, transaction);
-        }
+        await this.workItemRoleModel.bulkCreate(
+          [
+            ...INIT_USER_STORY_WORK_ITEM_ROLES.map((role) => ({
+              id: role.id,
+              wid: userStoryWid,
+              name: role.name,
+              appearance: role.appearance,
+              allocation: role.allocation,
+              isSingle: role.isSingle,
+              autoJoin: role.autoJoin,
+            })),
+            ...INIT_BUG_WORK_ITEM_ROLES.map((role) => ({
+              id: role.id,
+              wid: bugWid,
+              name: role.name,
+              appearance: role.appearance,
+              allocation: role.allocation,
+              isSingle: role.isSingle,
+              autoJoin: role.autoJoin,
+            })),
+            ...INIT_TASK_WORK_ITEM_ROLES.map((role) => ({
+              id: role.id,
+              wid: taskWid,
+              name: role.name,
+              appearance: role.appearance,
+              allocation: role.allocation,
+              isSingle: role.isSingle,
+              autoJoin: role.autoJoin,
+            })),
+          ] as any[],
+          { transaction },
+        );
         console.log('[!!!] end init work item roles');
         console.log('[!!!] start init workflow types');
         // 初始化工作流类型
@@ -268,47 +258,47 @@ export class SpaceService {
           throw new Error('Missing 标准业务开发流程 workflow type seed');
         }
         const userStoryWorkflowTypeId = standardUserStoryWorkflow.id;
-        for (const task of INIT_USER_STORY_TASKS) {
-          await this.taskService.create(
-            {
-              ...task,
+        await this.taskModel.bulkCreate(
+          [
+            ...INIT_USER_STORY_TASKS.map((task) => ({
               wid: userStoryWid,
               workflowType: userStoryWorkflowTypeId,
-            },
-            userId,
-            transaction,
-          );
-        }
+              fieldStatusListRaw: JSON.stringify(task.fieldStatusList || []),
+              creator: userId,
+            })),
+          ] as any[],
+          { transaction },
+        );
         if (bugWorkflowTypes.length === 0) {
           throw new Error('Missing bug workflow type seeds');
         }
         const bugWorkflowTypeId = bugWorkflowTypes[0].id;
-        for (const task of INIT_BUG_TASKS) {
-          await this.taskService.create(
-            {
-              ...task,
+        await this.taskModel.bulkCreate(
+          [
+            ...INIT_BUG_TASKS.map((task) => ({
               wid: bugWid,
               workflowType: bugWorkflowTypeId,
-            },
-            userId,
-            transaction,
-          );
-        }
+              fieldStatusListRaw: JSON.stringify(task.fieldStatusList || []),
+              creator: userId,
+            })),
+          ] as any[],
+          { transaction },
+        );
         if (taskWorkflowTypes.length === 0) {
           throw new Error('Missing task workflow type seeds');
         }
         const taskWorkflowTypeId = taskWorkflowTypes[0].id;
-        for (const task of INIT_TASK_TASKS) {
-          await this.taskService.create(
-            {
-              ...task,
+        await this.taskModel.bulkCreate(
+          [
+            ...INIT_TASK_TASKS.map((task) => ({
               wid: taskWid,
               workflowType: taskWorkflowTypeId,
-            },
-            userId,
-            transaction,
-          );
-        }
+              fieldStatusListRaw: JSON.stringify(task.fieldStatusList || []),
+              creator: userId,
+            })),
+          ] as any[],
+          { transaction },
+        );
         console.log('[!!!] end init tasks');
         return space;
       });

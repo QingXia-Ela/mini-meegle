@@ -12,6 +12,7 @@ import { CreateSubTaskDto } from './dto/create-sub-task.dto';
 import { UpdateSubTaskDto } from './dto/update-sub-task.dto';
 import { UpdateNodeStatusDto } from './dto/update-node-status.dto';
 import { TransitionNodeStatusDto } from './dto/transition-node-status.dto';
+import { UpdateApprovalInfoDto } from './dto/update-approval-info.dto';
 
 @Controller('task-node-status')
 export class TaskNodeStatusController {
@@ -46,6 +47,31 @@ export class TaskNodeStatusController {
     @Body() dto: TransitionNodeStatusDto,
   ) {
     return this.service.transitionNodeStatus(Number(taskId), nodeId, dto);
+  }
+
+  @Get(':taskId/nodes/:nodeId/approval')
+  getApprovalInfo(
+    @Param('taskId') taskId: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.service.getApprovalInfo(Number(taskId), nodeId);
+  }
+
+  @Put(':taskId/nodes/:nodeId/approval')
+  updateApprovalInfo(
+    @Param('taskId') taskId: string,
+    @Param('nodeId') nodeId: string,
+    @Body() dto: UpdateApprovalInfoDto,
+  ) {
+    return this.service.updateApprovalInfo(Number(taskId), nodeId, dto);
+  }
+
+  @Post(':taskId/nodes/:nodeId/approval/check')
+  checkApprovalInfo(
+    @Param('taskId') taskId: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.service.checkApprovalInfo(Number(taskId), nodeId);
   }
 
   @Get(':taskId/nodes/:nodeId/sub-tasks')

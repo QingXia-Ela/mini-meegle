@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState, useMemo } from 'react';
-import { Button, Form, Input, Popconfirm, message, Tabs, ConfigProvider, Select } from 'antd';
+import { Button, Form, Input, Popconfirm, message, Tabs, ConfigProvider, Select, Switch } from 'antd';
 import { ArrowLeftOutlined, ExclamationCircleOutlined, DeleteOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import type { WorkflowType } from '../../api';
 import { apiGetWorkItemFields, apiGetWorkItemRoles } from '../../api';
@@ -30,6 +30,22 @@ interface WorkflowNodeRole {
   [key: string]: /** single role */ Array<{ id: string; name: string }>;
 }
 
+type ApprovalMode = 'none' | 'merge_request' | 'document' | 'ai_material';
+
+interface ApprovalConfig {
+  mode: ApprovalMode;
+  prompt?: string;
+  aiReviewMr?: boolean;
+  aiReviewMrPrompt?: string;
+}
+
+const APPROVAL_MODE_OPTIONS: Array<{ value: ApprovalMode; label: string }> = [
+  { value: 'none', label: '无检查' },
+  { value: 'merge_request', label: '合并请求检查' },
+  { value: 'document', label: '填入相关文档检查' },
+  { value: 'ai_material', label: '填入相关素材并引入 AI 审查' },
+];
+
 const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
   workflow,
   onBack,
@@ -59,6 +75,20 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
     processNodes.find(n => n.id === selectedNodeId),
     [processNodes, selectedNodeId]
   );
+  const selectedApprovalConfig = useMemo<ApprovalConfig>(() => {
+    const config = selectedNode?.approvalConfig || {};
+    const mode = APPROVAL_MODE_OPTIONS.some((item) => item.value === config.mode)
+      ? config.mode
+      : 'none';
+    return {
+      mode,
+      prompt: typeof config.prompt === 'string' ? config.prompt : '',
+      aiReviewMr: config.aiReviewMr === true,
+      aiReviewMrPrompt: typeof config.aiReviewMrPrompt === 'string'
+        ? config.aiReviewMrPrompt
+        : '',
+    };
+  }, [selectedNode]);
 
   React.useEffect(() => {
     // Fetch status options
@@ -187,6 +217,29 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
       node.id === id ? { ...node, ...updates } : node
     ));
   }, []);
+
+  const handleApprovalConfigUpdate = useCallback((updates: Partial<ApprovalConfig>) => {
+    if (!selectedNodeId) return;
+    setProcessNodes(prev => prev.map(node => {
+      if (node.id !== selectedNodeId) return node;
+      const currentConfig = node.approvalConfig || { mode: 'none' };
+      const nextConfig = {
+        ...currentConfig,
+        ...updates,
+      };
+      if (nextConfig.mode !== 'ai_material') {
+        delete nextConfig.prompt;
+      }
+      if (nextConfig.mode !== 'merge_request') {
+        delete nextConfig.aiReviewMr;
+        delete nextConfig.aiReviewMrPrompt;
+      }
+      return {
+        ...node,
+        approvalConfig: nextConfig,
+      };
+    }));
+  }, [selectedNodeId]);
 
   const handleNodeClick = useCallback((node: ProcessNodeType) => {
     setSelectedNodeId(node.id);
@@ -405,6 +458,7 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                     items={[
                       { key: 'info', label: '节点信息' },
                       { key: 'event', label: '节点事件' },
+                      { key: 'approval', label: '卡点验证' },
                     ]}
                   />
                 </ConfigProvider>
@@ -485,6 +539,99 @@ const WorkflowDetail: React.FC<WorkflowDetailProps> = ({
                               {selectedNode.id}
                             </div>
                           </Form.Item>
+                        </Form>
+                      </div>
+                    )}
+                    {sidebarTab === 'approval' && (
+                      <div>
+                        <div className="flex items-center mb-6">
+                          <div className="w-[3px] h-4 bg-blue-600 rounded-full mr-2" />
+                          <span className="text-sm font-bold text-[#262626]">卡点验证配置</span>
+                        </div>
+
+                        <Form layout="vertical">
+                          <Form.Item
+                            label={<span className="text-[#8c8c8c] text-xs">检查模式</span>}
+                            className="mb-4"
+                          >
+                            <Select
+                              value={selectedApprovalConfig.mode}
+                              className="w-full"
+                              options={APPROVAL_MODE_OPTIONS}
+                              onChange={(mode: ApprovalMode) => {
+                                handleApprovalConfigUpdate({
+                                  mode,
+                                  prompt: mode === 'ai_material'
+                                    ? selectedApprovalConfig.prompt
+                                    : undefined,
+                                });
+                              }}
+                            />
+                          </Form.Item>
+
+                          {selectedApprovalConfig.mode === 'ai_material' && (
+                            <Form.Item
+                              label={<span className="text-[#8c8c8c] text-xs">AI 审查提示词</span>}
+                              className="mb-4"
+                            >
+                              <Input.TextArea
+                                value={selectedApprovalConfig.prompt}
+                                rows={5}
+                                placeholder="请输入 AI 审查时使用的判断标准，例如：检查材料是否包含完整需求背景、验收标准和风险说明。"
+                                onChange={(event) => {
+                                  handleApprovalConfigUpdate({
+                                    mode: 'ai_material',
+                                    prompt: event.target.value,
+                                  });
+                                }}
+                              />
+                            </Form.Item>
+                          )}
+
+                          {selectedApprovalConfig.mode === 'merge_request' && (
+                            <>
+                              <Form.Item
+                                label={<span className="text-[#8c8c8c] text-xs">MR AI 代码扫描</span>}
+                                className="mb-4"
+                              >
+                                <div className="flex items-center justify-between bg-[#fafafa] border border-[#f0f0f0] rounded-lg px-3 py-2">
+                                  <span className="text-sm text-[#262626]">开启 AI 扫描代码逻辑并评论</span>
+                                  <Switch
+                                    checked={selectedApprovalConfig.aiReviewMr}
+                                    onChange={(checked) => {
+                                      handleApprovalConfigUpdate({
+                                        mode: 'merge_request',
+                                        aiReviewMr: checked,
+                                      });
+                                    }}
+                                  />
+                                </div>
+                              </Form.Item>
+                              {selectedApprovalConfig.aiReviewMr && (
+                                <Form.Item
+                                  label={<span className="text-[#8c8c8c] text-xs">MR AI 审查提示词</span>}
+                                  className="mb-4"
+                                >
+                                  <Input.TextArea
+                                    value={selectedApprovalConfig.aiReviewMrPrompt}
+                                    rows={5}
+                                    placeholder="默认只拦截确定性的逻辑错误、安全风险、数据破坏、接口契约破坏和明显运行时错误；不要评论风格、命名、格式、偏好型建议或不确定问题。AI 审查会使用中文回复。"
+                                    onChange={(event) => {
+                                      handleApprovalConfigUpdate({
+                                        mode: 'merge_request',
+                                        aiReviewMr: true,
+                                        aiReviewMrPrompt: event.target.value,
+                                      });
+                                    }}
+                                  />
+                                </Form.Item>
+                              )}
+                            </>
+                          )}
+
+                          <div className="text-xs text-[#8c8c8c] leading-5 bg-[#fafafa] border border-[#f0f0f0] rounded-lg px-3 py-2">
+                            该配置会在任务节点流转为完成时生效。无检查不展示审批信息；合并请求检查要求填写 Gitee MR 链接，可选 AI 扫描代码逻辑并回写评论；文档检查要求填写文档链接；AI 审查会结合这里的提示词判断材料是否通过。
+                          </div>
                         </Form>
                       </div>
                     )}

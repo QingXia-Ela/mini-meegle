@@ -8,6 +8,7 @@ import JoinSpaceModal from './components/JoinSpaceModal';
 import useWorkspaceList from './hooks/useWorkspaceList';
 import defaultSpaceIcon from './assets/defaultSpaceIcon.png';
 import { WORK_ITEM_COLORS, WORK_ITEM_ICONS } from '../../settings/workItem/constants/icons';
+import { apiCheckSpacePermission } from './api';
 
 interface Space {
   id: string;
@@ -32,6 +33,7 @@ function SpaceWorkItemLayout() {
   );
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [isCurrentSpaceManager, setIsCurrentSpaceManager] = useState(false);
 
   const {
     spaces,
@@ -56,6 +58,13 @@ function SpaceWorkItemLayout() {
     }
   }, [spaces, spacesLoading, selectedSpaceId, navigate, location.pathname]);
 
+  useEffect(() => {
+    if (params.spaceId && params.spaceId !== selectedSpaceId) {
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setSelectedSpaceId(params.spaceId);
+    }
+  }, [params.spaceId, selectedSpaceId]);
+
   // 判断路由是否激活
   const isRouteActive = (path: string) => {
     return location.pathname.startsWith(path);
@@ -68,6 +77,35 @@ function SpaceWorkItemLayout() {
     }
     // 加入依赖项会导致无限循环
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSpaceId]);
+
+  useEffect(() => {
+    if (!selectedSpaceId) {
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setIsCurrentSpaceManager(false);
+      return;
+    }
+
+    let ignored = false;
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setIsCurrentSpaceManager(false);
+
+    apiCheckSpacePermission(selectedSpaceId)
+      .then((permission) => {
+        if (!ignored) {
+          setIsCurrentSpaceManager(Boolean(permission.isManager));
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to check space permission:', error);
+        if (!ignored) {
+          setIsCurrentSpaceManager(false);
+        }
+      });
+
+    return () => {
+      ignored = true;
+    };
   }, [selectedSpaceId]);
 
   // 处理空间选择变化
@@ -287,15 +325,17 @@ function SpaceWorkItemLayout() {
                 }
                 label="空间主页"
               />
-              <SidebarSelectItem
-                active={isRouteActive(`/space/${selectedSpaceId}/settings`)}
-                onClick={() => navigate(`/space/${selectedSpaceId}/settings`)}
-                iconBackgroundColor='bg-[#6b7280]'
-                icon={
-                  <SettingFilled style={{ color: '#fff', fontSize: '12px' }} />
-                }
-                label="空间设置"
-              />
+              {isCurrentSpaceManager && (
+                <SidebarSelectItem
+                  active={isRouteActive(`/space/${selectedSpaceId}/settings`)}
+                  onClick={() => navigate(`/space/${selectedSpaceId}/settings`)}
+                  iconBackgroundColor='bg-[#6b7280]'
+                  icon={
+                    <SettingFilled style={{ color: '#fff', fontSize: '12px' }} />
+                  }
+                  label="空间设置"
+                />
+              )}
             </div>
           </>
         )}

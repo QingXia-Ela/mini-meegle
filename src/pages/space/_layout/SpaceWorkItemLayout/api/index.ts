@@ -25,6 +25,12 @@ export function apiGetSpaceWorkItems(spaceId: string) {
   });
 }
 
+export function apiCheckSpacePermission(spaceId: string) {
+  return request<{ isManager: boolean }>(`/spaces/${spaceId}/permission`, {
+    method: 'GET',
+  });
+}
+
 export function apiJoinSpace(spaceId: string) {
   return request('/spaces/join', {
     method: 'POST',

@@ -5,21 +5,47 @@ import { HomeFilled, AppstoreFilled, StarFilled, BellFilled, UserAddOutlined } f
 import MeegleLogo from '@/assets/meegle.svg'
 import { cleanUserInfo } from '@/api/request';
 import { useNoticeBadgeStore } from '@/store/noticeBadge';
+import { useUserStore } from '@/store/user';
 
-const UserPopoverContent: React.FC = () => {
+type CurrentUser = {
+  name?: string;
+  email?: string;
+  avatar?: string | null;
+};
+
+type LoginUserInfo = CurrentUser & {
+  user?: CurrentUser;
+};
+
+const getCurrentUser = (userInfo?: LoginUserInfo | null): CurrentUser => {
+  return userInfo?.user ?? userInfo ?? {};
+};
+
+const getAvatarText = (user: CurrentUser) => {
+  return (user.name || user.email || 'U').trim().slice(0, 1).toUpperCase();
+};
+
+const UserPopoverContent: React.FC<{ user: CurrentUser }> = ({ user }) => {
   function logout() {
     notification.info({ message: '已退出登录' });
     cleanUserInfo()
     window.location.href = '/login';
   }
+  const displayName = user.name || '未登录用户';
+  const displayEmail = user.email || '暂无邮箱';
+
   return (
     <div className="w-60 text-[16px]">
       <div className="flex items-center justify-between space-x-3 p-2">
         <div className="flex items-center space-x-3">
-          <Avatar size={48}>S</Avatar>
+          <Avatar size={48} src={user.avatar || undefined}>
+            {getAvatarText(user)}
+          </Avatar>
           <div className='ml-2 flex flex-col'>
-            <div className="font-semibold">spark xiao</div>
-            <div className="text-xs text-gray-500">goo03092514593gle@gmail...</div>
+            <div className="font-semibold truncate max-w-36">{displayName}</div>
+            <div className="text-xs text-gray-500 truncate max-w-36" title={displayEmail}>
+              {displayEmail}
+            </div>
           </div>
         </div>
       </div>
@@ -59,6 +85,8 @@ export const MainLayout: React.FC = () => {
   const location = useLocation();
   const unreadCount = useNoticeBadgeStore((state) => state.unreadCount);
   const refreshUnreadCount = useNoticeBadgeStore((state) => state.refreshUnreadCount);
+  const userInfo = useUserStore((state) => state.userInfo);
+  const currentUser = getCurrentUser(userInfo);
 
   const isActive = (path: string, mode: 'exact' | 'includes' = 'includes') => {
     if (mode === 'exact') {
@@ -111,9 +139,11 @@ export const MainLayout: React.FC = () => {
             <Popover content="邀请同事" placement="right" trigger="hover">
               <UserAddOutlined style={{ fontSize: 26, color: '#7f7f7f', margin: 0, cursor: 'pointer' }} />
             </Popover>
-            <Popover content={<UserPopoverContent />} placement="rightBottom" trigger="hover">
+            <Popover content={<UserPopoverContent user={currentUser} />} placement="rightBottom" trigger="hover">
               <div className="flex items-center space-x-2 cursor-pointer">
-                <Avatar size='large'> S </Avatar>
+                <Avatar size='large' src={currentUser.avatar || undefined}>
+                  {getAvatarText(currentUser)}
+                </Avatar>
               </div>
             </Popover>
           </div>
